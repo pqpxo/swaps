@@ -423,7 +423,6 @@ function generateScript(_ref) {
   }
   if (cfg.sshKeys.enabled && cfg.sshKeys.config.keys.length > 0) {
     sec_('SSH Authorized Keys');
-    if (cfg.sshKeys.config.backup) add(`${DR}cp ~/.ssh/authorized_keys ~/.ssh/authorized_keys.bak 2>/dev/null && info "Backed up authorized_keys" || true`);
     add('info "Adding SSH keys..."', `${DR}mkdir -p ~/.ssh && chmod 700 ~/.ssh`, `${DR}touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`);
     cfg.sshKeys.config.keys.filter(k => k.key.trim()).forEach(k => {
       if (k.label) add(`# ${k.label}`);
@@ -459,17 +458,14 @@ function generateScript(_ref) {
   }
   if (cfg.vimrc.enabled && cfg.vimrc.config.content.trim()) {
     sec_('~/.vimrc');
-    if (cfg.vimrc.config.backup) add(`${DR}cp ~/.vimrc ~/.vimrc.bak 2>/dev/null && info "Backed up .vimrc" || true`);
     add('info "Writing .vimrc..."', `${DR}cat > ~/.vimrc << 'VIMEOF'`, cfg.vimrc.config.content, 'VIMEOF', 'ok ".vimrc written"');
   }
   if (cfg.tmuxConf.enabled && cfg.tmuxConf.config.content.trim()) {
     sec_('~/.tmux.conf');
-    if (cfg.tmuxConf.config.backup) add(`${DR}cp ~/.tmux.conf ~/.tmux.conf.bak 2>/dev/null && info "Backed up .tmux.conf" || true`);
     add('info "Writing .tmux.conf..."', `${DR}cat > ~/.tmux.conf << 'TMUXEOF'`, cfg.tmuxConf.config.content, 'TMUXEOF', 'ok ".tmux.conf written"');
   }
   if (cfg.gitconfig.enabled) {
     sec_('~/.gitconfig');
-    if (cfg.gitconfig.config.backup) add(`${DR}cp ~/.gitconfig ~/.gitconfig.bak 2>/dev/null && info "Backed up .gitconfig" || true`);
     const {
       name,
       email,
@@ -2414,7 +2410,6 @@ function App() {
     sshKeys: {
       enabled: false,
       config: {
-        backup: false,
         keys: [{
           id: 'k1',
           label: '',
@@ -2435,21 +2430,18 @@ function App() {
     vimrc: {
       enabled: false,
       config: {
-        backup: false,
         content: 'set number\nset tabstop=2\nset shiftwidth=2\nset expandtab\nset autoindent\nsyntax on\ncolorscheme desert'
       }
     },
     tmuxConf: {
       enabled: false,
       config: {
-        backup: false,
         content: 'set -g mouse on\nset -g history-limit 50000\nset -g base-index 1\nbind | split-window -h\nbind - split-window -v'
       }
     },
     gitconfig: {
       enabled: false,
       config: {
-        backup: false,
         name: '',
         email: '',
         editor: 'vim'
@@ -3313,7 +3305,7 @@ function App() {
     style: {
       width: 440,
       flexShrink: 0,
-      display: leftTab === 'settings' ? 'none' : 'flex',
+      display: 'flex',
       flexDirection: 'column',
       background: 'var(--surf)',
       borderRight: '1px solid var(--bdr)',
@@ -3992,12 +3984,7 @@ function App() {
         padding: '1px 7px'
       }
     }, "+ Add")
-  }, React.createElement(React.Fragment, null,
-    React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0 8px', borderBottom: '1px solid var(--bdr)', marginBottom: 8 } },
-      React.createElement("input", { type: 'checkbox', id: 'bak_sshkeys', checked: cfg.sshKeys.config.backup || false, onChange: () => updCfg('sshKeys', 'backup', !cfg.sshKeys.config.backup), style: { accentColor: 'var(--teal)', cursor: 'pointer' } }),
-      React.createElement("label", { htmlFor: 'bak_sshkeys', style: { fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--sans)', cursor: 'pointer' } }, "Backup authorized_keys → authorized_keys.bak before applying")
-    ),
-    cfg.sshKeys.config.keys.map((k, i) => React.createElement("div", {
+  }, cfg.sshKeys.config.keys.map((k, i) => React.createElement("div", {
     key: k.id,
     style: {
       marginBottom: 8,
@@ -4053,7 +4040,7 @@ function App() {
     style: {
       fontSize: 10
     }
-  }))))))  , React.createElement(SwItem, {
+  }))))), React.createElement(SwItem, {
     label: "Environment Variables",
     desc: "Append export KEY=value to .bashrc",
     icon: "$",
@@ -4139,10 +4126,7 @@ function App() {
     onToggle: () => togCfg('vimrc'),
     expanded: expanded.vimrc,
     onExpand: () => togExp('vimrc')
-  }, React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
-    React.createElement("input", { type: 'checkbox', id: 'bak_vimrc', checked: cfg.vimrc.config.backup || false, onChange: () => updCfg('vimrc', 'backup', !cfg.vimrc.config.backup), style: { accentColor: 'var(--teal)', cursor: 'pointer' } }),
-    React.createElement("label", { htmlFor: 'bak_vimrc', style: { fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--sans)', cursor: 'pointer' } }, "Backup .vimrc → .vimrc.bak before applying")
-  ), React.createElement("textarea", {
+  }, React.createElement("textarea", {
     value: cfg.vimrc.config.content,
     onChange: e => updCfg('vimrc', 'content', e.target.value),
     rows: 6,
@@ -4158,10 +4142,7 @@ function App() {
     onToggle: () => togCfg('tmuxConf'),
     expanded: expanded.tmuxConf,
     onExpand: () => togExp('tmuxConf')
-  }, React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
-    React.createElement("input", { type: 'checkbox', id: 'bak_tmux', checked: cfg.tmuxConf.config.backup || false, onChange: () => updCfg('tmuxConf', 'backup', !cfg.tmuxConf.config.backup), style: { accentColor: 'var(--teal)', cursor: 'pointer' } }),
-    React.createElement("label", { htmlFor: 'bak_tmux', style: { fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--sans)', cursor: 'pointer' } }, "Backup .tmux.conf → .tmux.conf.bak before applying")
-  ), React.createElement("textarea", {
+  }, React.createElement("textarea", {
     value: cfg.tmuxConf.config.content,
     onChange: e => updCfg('tmuxConf', 'content', e.target.value),
     rows: 5,
@@ -4177,10 +4158,7 @@ function App() {
     onToggle: () => togCfg('gitconfig'),
     expanded: expanded.gitconfig,
     onExpand: () => togExp('gitconfig')
-  }, React.createElement("div", { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
-    React.createElement("input", { type: 'checkbox', id: 'bak_git', checked: cfg.gitconfig.config.backup || false, onChange: () => updCfg('gitconfig', 'backup', !cfg.gitconfig.config.backup), style: { accentColor: 'var(--teal)', cursor: 'pointer' } }),
-    React.createElement("label", { htmlFor: 'bak_git', style: { fontSize: 11, color: 'var(--dim)', fontFamily: 'var(--sans)', cursor: 'pointer' } }, "Backup .gitconfig → .gitconfig.bak before applying")
-  ), React.createElement(Inp, {
+  }, React.createElement(Inp, {
     label: "Name",
     value: cfg.gitconfig.config.name,
     onChange: v => updCfg('gitconfig', 'name', v),
@@ -4863,15 +4841,7 @@ function App() {
       fontFamily: 'var(--sans)'
     }
   }, "+ Add command block")))), leftTab === 'settings' && React.createElement("div", {
-    style: {
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden auto',
-      background: 'var(--bg)'
-    }
-  }, React.createElement("div", {
-    style: { padding: '20px 24px', maxWidth: 700 }
+    style: { padding: '16px 14px', overflowY: 'auto', flex: 1 }
   },
   /* ── BRANDING ── */
   React.createElement("div", { style: { fontSize: 10, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'var(--sans)', marginBottom: 10 } }, "Branding"),
@@ -4921,10 +4891,10 @@ function App() {
   React.createElement("div", { style: { fontSize: 10, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'var(--sans)', marginBottom: 10 } }, "Deployment"),
   React.createElement("div", { style: { background: 'var(--card)', borderRadius: 8, padding: 12, border: '1px solid var(--bdr)' } },
     React.createElement("div", { style: { fontSize: 10, color: 'var(--dim)', fontFamily: 'var(--sans)', marginBottom: 4 } }, "Host URL / IP (used in cURL export)"),
-    React.createElement("input", { value: settings.hostUrl || '', onChange: e => updSetting('hostUrl', e.target.value), placeholder: '192.168.1.100:8080', style: { width: '100%', fontSize: 12, marginBottom: 6 } }),
+    React.createElement("input", { value: settings.hostUrl || '', onChange: e => updSetting('hostUrl', e.target.value), placeholder: '192.168.1.100:8080 or swakes.co.uk', style: { width: '100%', fontSize: 12, marginBottom: 6 } }),
     React.createElement("div", { style: { fontSize: 10, color: 'var(--faint)', fontFamily: 'var(--mono)' } }, `curl -fsSL http://${settings.hostUrl || 'YOUR_HOST:8080'}/script.sh | bash`)
   )
-)), React.createElement("div", {
+), React.createElement("div", {
     style: {
       flex: 1,
       display: 'flex',
