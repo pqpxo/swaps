@@ -1,10 +1,4 @@
-# Don't commit environment secrets
-.env
-*.env
-
-# Docker volumes / local data
-data/
-volumes/
-
-# OS files
-.DS_Store
+node_modules/
+*.notworking
+*.old
+backup/
