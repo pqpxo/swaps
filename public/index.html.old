@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>LinuxProvisioner</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%;background:#0d1117;color:#e6edf3;font-family:'Inter',system-ui,sans-serif}
+    input,textarea,select{background:#161b22;border:1px solid #30363d;border-radius:6px;color:#e6edf3;font-family:'JetBrains Mono','Fira Mono',monospace;font-size:12px;padding:5px 9px;outline:none;width:100%;transition:border-color .15s}
+    input:focus,textarea:focus,select:focus{border-color:#388bfd}
+    input[type=color]{padding:2px;height:26px;width:30px;cursor:pointer;border-radius:4px;background:#0d1117}
+    input[type=radio]{width:auto;accent-color:#1D9E75}
+    textarea{resize:vertical;line-height:1.55}
+    select{cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238b949e' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+    button{cursor:pointer;font-family:'Inter',system-ui,sans-serif}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:#0d1117}
+    ::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:#484f58}
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useMemo,useRef,useEffect,useCallback}=React;
+
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+══════════════════════════════════════════════════════════ */
+const C={
+  bg:'#0d1117',surf:'#161b22',card:'#1c2128',
+  bdr:'#30363d',bdrHov:'#484f58',
+  teal:'#1D9E75',tealDim:'rgba(29,158,117,0.12)',tealBdr:'rgba(29,158,117,0.35)',
+  blue:'#388bfd',
+  text:'#e6edf3',dim:'#8b949e',faint:'#6e7681',
+  green:'#3fb950',amber:'#d29922',red:'#f85149',
+  mono:"'JetBrains Mono','Fira Mono',monospace",
+  sans:"'Inter',system-ui,sans-serif",
+};
+
+const uid=()=>Math.random().toString(36).slice(2,8);
+
+const PI_MODELS=[
+  {id:'pi5',   label:'Pi 5',         arch:'arm64'},
+  {id:'pi4',   label:'Pi 4',         arch:'arm64'},
+  {id:'pi3bp', label:'Pi 3 B+',      arch:'arm64'},
+  {id:'pi3',   label:'Pi 3',         arch:'armhf'},
+  {id:'pi2',   label:'Pi 2',         arch:'armhf'},
+  {id:'pi1',   label:'Pi 1',         arch:'armv6l'},
+  {id:'zero2w',label:'Pi Zero 2 W',  arch:'arm64'},
+  {id:'zerow', label:'Pi Zero W',    arch:'armv6l'},
+  {id:'zero',  label:'Pi Zero',      arch:'armv6l'},
+];
+
+const DEFAULT_LOGO=`   _    _
+  | |  (_)_ _ _  ___ __
+  | |__| | ' \\ || \\ \\ /
+  |____|_|_||_\\__,_/_\\_\\`;
+
+/* ── Default bashrc templates ───────────────────────────── */
+const SEED_TEMPLATES=[
+  {id:'tpl-std',name:'Standard Server',
+   content:`# ── LinuxProvisioner · {{HOSTNAME}} ────────────────────
+# Aliases
+alias ll='ls -alF --color=auto'
+alias la='ls -A --color=auto'
+alias gs='git status'
+alias gp='git pull'
+alias dps='docker ps'
+alias dcu='docker compose up -d'
+alias dcd='docker compose down'
+alias dcl='docker compose logs -f'
+
+# PS1
+PS1='\\[\\033[38;2;74;222;128m\\]\\u\\[\\033[0m\\]@\\[\\033[38;2;96;165;250m\\]{{HOSTNAME}}\\[\\033[0m\\]:\\[\\033[38;2;251;146;60m\\]\\w\\[\\033[0m\\]\\$ '
+
+# Login directory
+cd {{LOGIN_DIR}}
+
+# Welcome script
+[ -f ~/.motd.sh ] && bash ~/.motd.sh`,
+   varLabels:{HOSTNAME:'Hostname',LOGIN_DIR:'Login Directory'},
+   varDefaults:{HOSTNAME:'my-server',LOGIN_DIR:'~'}},
+
+  {id:'tpl-pi',name:'Raspberry Pi',
+   content:`# ── Pi Setup · {{PINAME}} ─────────────────────────────────
+alias ll='ls -alF --color=auto'
+alias temp='vcgencmd measure_temp'
+alias throttle='vcgencmd get_throttled'
+alias gs='git status'
+alias dps='docker ps'
+alias dcu='docker compose up -d'
+alias dcd='docker compose down'
+
+# PS1
+PS1='\\[\\033[0;32m\\]\\u@{{PINAME}}\\[\\033[0m\\]:\\[\\033[0;33m\\]\\w\\[\\033[0m\\]\\$ '`,
+   varLabels:{PINAME:'Pi Hostname'},
+   varDefaults:{PINAME:'raspberrypi'}},
+
+  {id:'tpl-dev',name:'Developer Setup',
+   content:`# ── Dev · {{USERNAME}} ────────────────────────────────────
+# Git
+alias gs='git status'   ; alias gp='git pull'
+alias ga='git add -A'   ; alias gl='git log --oneline -20'
+alias gc='git commit -m'; alias gd='git diff'
+
+# Docker
+alias dps='docker ps'   ; alias dcu='docker compose up -d'
+alias dcd='docker compose down' ; alias dcl='docker compose logs -f'
+
+# Nav
+alias ll='ls -alF --color=auto'
+alias ..='cd ..'        ; alias ...='cd ../..'
+
+# export EDITOR={{EDITOR}}
+export EDITOR={{EDITOR}}
+
+# PS1 (custom RGB colour)
+PS1='\\[\\033[38;2;{{R}};{{G}};{{B}}m\\]\\u\\[\\033[0m\\]@\\h:\\w\\$ '
+
+cd {{WORKDIR}}`,
+   varLabels:{USERNAME:'Your name',EDITOR:'Default editor',R:'PS1 Red (0-255)',G:'PS1 Green (0-255)',B:'PS1 Blue (0-255)',WORKDIR:'Default directory'},
+   varDefaults:{USERNAME:'dev',EDITOR:'nano',R:'74',G:'222',B:'128',WORKDIR:'~/projects'}},
+];
+
+/* ═══════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════ */
+const hexRgb=h=>{const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?`${parseInt(m[1],16)};${parseInt(m[2],16)};${parseInt(m[3],16)}`:'255;255;255'};
+const ansiC=h=>`\\[\\033[38;2;${hexRgb(h)}m\\]`;
+const ansiR=`\\[\\033[0m\\]`;
+const stripAnsi=s=>s.replace(/\x1b\[[0-9;]*[mGKHFJABCD]/g,'').replace(/\r/g,'');
+
+function lineColor(text){
+  const s=stripAnsi(text).trim();
+  if(s.startsWith('✓')||s.includes('[OK]'))return C.green;
+  if(s.startsWith('⚠')||s.includes('[WARN]'))return C.amber;
+  if(s.startsWith('▸')||s.includes('[INFO]'))return'#22d3ee';
+  if(/error|failed|Error/i.test(s))return C.red;
+  return C.text;
+}
+
+const extractVars=content=>[...new Set((content.match(/\{\{([A-Z_0-9]+)\}\}/g)||[]).map(m=>m.slice(2,-2)))];
+const resolveTemplate=(content,vals)=>content.replace(/\{\{([A-Z_0-9]+)\}\}/g,(_,k)=>vals[k]||`{{${k}}}`);
+
+function buildPS1(c){return`${ansiC(c.ps1User)}\\u${ansiR}@${ansiC(c.ps1Host)}\\h${ansiR}:${ansiC(c.ps1Path)}\\w${ansiR}\\$ `}
+
+function buildNeofetchConf(custom){return`print_info() {
+    info title; info "OS" distro; info "Host" model; info "Kernel" kernel
+    info "Uptime" uptime; info "Packages" packages; info "Shell" shell
+    info "CPU" cpu; info "Memory" memory; info "Disk" disk; info cols
+}
+image_backend="ascii"
+image_source="${custom?'~/.config/neofetch/logo.txt':'auto'}"
+colors=(2 3 4 5 6 1)
+bold="on"
+underline_enabled="on"`;}
+
+/* ── Neofetch template + colour helpers ─────────────────────── */
+const NEOFETCH_TEMPLATE = "# See this wiki page for more info:\n# https://github.com/dylanaraps/neofetch/wiki/Customizing-Info\n\nget_docker() {\n    local status=$(docker inspect -f '{{.State.Status}}' @1@DOCKER-CONTAINER@1@ 2>/dev/null)\n    case \"$status\" in\n        running) echo \"\\e[38;5;117mActive\\e[0m\" ;;\n        exited)  echo \"\\e[31mInactive\\e[0m\" ;;\n        *)       echo \"\\e[33mUnknown\\e[0m\" ;;\n    esac\n}\n\nget_disk() {\n    local used=$(df -h / | awk 'NR==2 {print $3}')\n    local total=$(df -h / | awk 'NR==2 {print $2}')\n    local percent=$(df -h / | awk 'NR==2 {print $5}')\n    echo \"${used} / ${total} (${percent})\"\n}\n\nget_updates() {\n    local cache=\"/tmp/neofetch_updates_cache\"\n    if [ ! -f \"$cache\" ] || [ \"$(find \"$cache\" -mmin +1440 2>/dev/null)\" ]; then\n        apt list --upgradable 2>/dev/null | grep -c upgradable > \"$cache\"\n    fi\n    local updates=$(cat \"$cache\")\n    if [ \"$updates\" -eq 0 ]; then\n        echo \"Up to date\"\n    else\n        echo \"${updates} updates available\"\n    fi\n}\n\nget_cpu_usage() {\n    local cpu=$(awk '/^cpu / {usage=($2+$4)*100/($2+$3+$4+$5); printf \"%.1f\", usage}' /proc/stat)\n    echo \"${cpu}%\"\n}\n\nprint_info() {\n    prin \"\"\n\n    # Colors\n    local @2@COLOUR1@2@=\"\\e[38;5;25m\"   \n    local @3@COLOUR2@3@=\"\\e[38;5;248m\"\n    local @4@COLOUR3@4@=\"\\033[38;5;117m\"\n\n    local reset=\"\\e[0m\"\n\n    # Custom title\n    prin \"${@2@COLOUR1@2@}${USER}${reset}@${@4@COLOUR3@4@}$(hostname)${reset}\"\n    prin \"\"\n    prin \"${@3@COLOUR2@3@}@5@TITLE@5@${reset}\"\n    prin \"\"\n    prin \"${@3@COLOUR2@3@}------------------------------${reset}\"\n    prin \"\"\n\n    # Body\n    prin \"${@2@COLOUR1@2@}Date${reset}\" \"$(date)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}OS${reset}\" distro\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}CPU${reset}\" \"$(get_cpu_usage)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Memory${reset}\" memory\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Disk${reset}\" \"$(get_disk)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Local IP${reset}\" local_ip\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Updates${reset}\" \"$(get_updates)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Uptime${reset}\" uptime\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Docker Container${reset}\" \"$(get_docker)\"\n    prin \"\"\n\n    local link_url=$'\\e]8;;@6@URL@6@\\a@7@URLTEXT@7@\\e]8;;\\a'\n\n    prin \"${@2@COLOUR1@2@}Links${reset}\" \"${@4@COLOUR3@4@}${link_url}${reset}\"\n    prin \"\"\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    # Docker container checks (aligned to info column)\n\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Docker: Containers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n#{\n#    local _oldsep=\"$separator\"\n#    separator=\"\"#\n#\n#    # Block-wide indent\n#    local BLOCK_INDENT=4\n#    local PAD\n#    printf -v PAD \"%*s\" \"$BLOCK_INDENT\" \"\"\n#\n#    prin \"\" \"${PAD}\u250c\u2500\u2500\u2500\u2500\u2500\u2500 ${orange}Docker${reset}: Containers \u2500\u2500\u2500\u2500\u2500\u2500\u2510\"\n#\n#    # Inner indent for circle + label\n#    local INDENT=8\n#    local LEFT\n#    printf -v LEFT \"%*s\" \"$INDENT\" \"\"\n#\n#    local containers=(\n#        \"SABnzbd:sabnzbd\"\n#        \"Transmission:transmission\"\n#        \"Radarr:radarr\"\n#        \"Sonarr:sonarr\"\n#        \"Overseerr:overseerr\"\n#    )\n#\n #   _circle() {\n#        local s\n#        s=$(/usr/bin/docker inspect -f '{{.State.Status}}' \"$1\" 2>/dev/null || echo \"not found\")\n#        if [ \"$s\" = \"running\" ]; then\n#            printf \"\\033[32m\u25cf\\033[0m\"\n#        else\n#            printf \"\\033[31m\u25cf\\033[0m\"\n#        fi\n#    }\n#\n#    local entry label cname circle line\n#    for entry in \"${containers[@]}\"; do\n#        label=\"${entry%%:*}\"\n#        cname=\"${entry#*:}\"\n#        circle=\"$(_circle \"$cname\")\"\n#        printf -v line \"%s%s  %b%-14s%b\" \"$LEFT\" \"$circle\" \"$orange\" \"$label\" \"$reset\"\n#        prin \"\" \"$line\"\n#    done\n#\n#    prin \"\" \"${PAD}\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\"\n#    separator=\"$_oldsep\"\n#}\n#\n\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n}\n\n\n# Title\n\n\n# Hide/Show Fully qualified domain name.\n#\n# Default:  'off'\n# Values:   'on', 'off'\n# Flag:     --title_fqdn\ntitle_fqdn=\"off\"\n\n# Kernel\n\n\n# Shorten the output of the kernel function.\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --kernel_shorthand\n# Supports: Everything except *BSDs (except PacBSD and PC-BSD)\n#\n# Example:\n# on:  '4.8.9-1-ARCH'\n# off: 'Linux 4.8.9-1-ARCH'\nkernel_shorthand=\"on\"\n\n\n# Distro\n\n\n# Shorten the output of the distro function\n#\n# Default:  'off'\n# Values:   'on', 'tiny', 'off'\n# Flag:     --distro_shorthand\n# Supports: Everything except Windows and Haiku\ndistro_shorthand=\"off\"\n\n# Show/Hide OS Architecture.\n# Show 'x86_64', 'x86' and etc in 'Distro:' output.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --os_arch\n#\n# Example:\n# on:  'Arch Linux x86_64'\n# off: 'Arch Linux'\nos_arch=\"on\"\n\n\n# Uptime\n\n\n# Shorten the output of the uptime function\n#\n# Default: 'on'\n# Values:  'on', 'tiny', 'off'\n# Flag:    --uptime_shorthand\n#\n# Example:\n# on:   '2 days, 10 hours, 3 mins'\n# tiny: '2d 10h 3m'\n# off:  '2 days, 10 hours, 3 minutes'\nuptime_shorthand=\"on\"\n\n\n# Memory\n\n\n# Show memory pecentage in output.\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --memory_percent\n#\n# Example:\n# on:   '1801MiB / 7881MiB (22%)'\n# off:  '1801MiB / 7881MiB'\nmemory_percent=\"off\"\n\n# Change memory output unit.\n#\n# Default: 'mib'\n# Values:  'kib', 'mib', 'gib'\n# Flag:    --memory_unit\n#\n# Example:\n# kib  '1020928KiB / 7117824KiB'\n# mib  '1042MiB / 6951MiB'\n# gib: ' 0.98GiB / 6.79GiB'\nmemory_unit=\"mib\"\n\n\n# Packages\n\n\n# Show/Hide Package Manager names.\n#\n# Default: 'tiny'\n# Values:  'on', 'tiny' 'off'\n# Flag:    --package_managers\n#\n# Example:\n# on:   '998 (pacman), 8 (flatpak), 4 (snap)'\n# tiny: '908 (pacman, flatpak, snap)'\n# off:  '908'\npackage_managers=\"on\"\n\n\n# Shell\n\n\n# Show the path to $SHELL\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --shell_path\n#\n# Example:\n# on:  '/bin/bash'\n# off: 'bash'\nshell_path=\"off\"\n\n# Show $SHELL version\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --shell_version\n#\n# Example:\n# on:  'bash 4.4.5'\n# off: 'bash'\nshell_version=\"on\"\n\n\n# CPU\n\n\n# CPU speed type\n#\n# Default: 'bios_limit'\n# Values: 'scaling_cur_freq', 'scaling_min_freq', 'scaling_max_freq', 'bios_limit'.\n# Flag:    --speed_type\n# Supports: Linux with 'cpufreq'\n# NOTE: Any file in '/sys/devices/system/cpu/cpu0/cpufreq' can be used as a value.\nspeed_type=\"bios_limit\"\n\n# CPU speed shorthand\n#\n# Default: 'off'\n# Values: 'on', 'off'.\n# Flag:    --speed_shorthand\n# NOTE: This flag is not supported in systems with CPU speed less than 1 GHz\n#\n# Example:\n# on:    'i7-6500U (4) @ 3.1GHz'\n# off:   'i7-6500U (4) @ 3.100GHz'\nspeed_shorthand=\"off\"\n\n# Enable/Disable CPU brand in output.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --cpu_brand\n#\n# Example:\n# on:   'Intel i7-6500U'\n# off:  'i7-6500U (4)'\ncpu_brand=\"on\"\n\n# CPU Speed\n# Hide/Show CPU speed.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --cpu_speed\n#\n# Example:\n# on:  'Intel i7-6500U (4) @ 3.1GHz'\n# off: 'Intel i7-6500U (4)'\ncpu_speed=\"on\"\n\n# CPU Cores\n# Display CPU cores in output\n#\n# Default: 'logical'\n# Values:  'logical', 'physical', 'off'\n# Flag:    --cpu_cores\n# Support: 'physical' doesn't work on BSD.\n#\n# Example:\n# logical:  'Intel i7-6500U (4) @ 3.1GHz' (All virtual cores)\n# physical: 'Intel i7-6500U (2) @ 3.1GHz' (All physical cores)\n# off:      'Intel i7-6500U @ 3.1GHz'\ncpu_cores=\"logical\"\n\n# CPU Temperature\n# Hide/Show CPU temperature.\n# Note the temperature is added to the regular CPU function.\n#\n# Default: 'off'\n# Values:  'C', 'F', 'off'\n# Flag:    --cpu_temp\n# Supports: Linux, BSD\n# NOTE: For FreeBSD and NetBSD-based systems, you'll need to enable\n#       coretemp kernel module. This only supports newer Intel processors.\n#\n# Example:\n# C:   'Intel i7-6500U (4) @ 3.1GHz [27.2\u00b0C]'\n# F:   'Intel i7-6500U (4) @ 3.1GHz [82.0\u00b0F]'\n# off: 'Intel i7-6500U (4) @ 3.1GHz'\ncpu_temp=\"off\"\n\n\n# GPU\n\n\n# Enable/Disable GPU Brand\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gpu_brand\n#\n# Example:\n# on:  'AMD HD 7950'\n# off: 'HD 7950'\ngpu_brand=\"on\"\n\n# Which GPU to display\n#\n# Default: 'all'\n# Values:  'all', 'dedicated', 'integrated'\n# Flag:    --gpu_type\n# Supports: Linux\n#\n# Example:\n# all:\n#   GPU1: AMD HD 7950\n#   GPU2: Intel Integrated Graphics\n#\n# dedicated:\n#   GPU1: AMD HD 7950\n#\n# integrated:\n#   GPU1: Intel Integrated Graphics\ngpu_type=\"all\"\n\n\n# Resolution\n\n\n# Display refresh rate next to each monitor\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --refresh_rate\n# Supports: Doesn't work on Windows.\n#\n# Example:\n# on:  '1920x1080 @ 60Hz'\n# off: '1920x1080'\nrefresh_rate=\"off\"\n\n\n# Gtk Theme / Icons / Font\n\n\n# Shorten output of GTK Theme / Icons / Font\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --gtk_shorthand\n#\n# Example:\n# on:  'Numix, Adwaita'\n# off: 'Numix [GTK2], Adwaita [GTK3]'\ngtk_shorthand=\"off\"\n\n\n# Enable/Disable gtk2 Theme / Icons / Font\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gtk2\n#\n# Example:\n# on:  'Numix [GTK2], Adwaita [GTK3]'\n# off: 'Adwaita [GTK3]'\ngtk2=\"on\"\n\n# Enable/Disable gtk3 Theme / Icons / Font\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gtk3\n#\n# Example:\n# on:  'Numix [GTK2], Adwaita [GTK3]'\n# off: 'Numix [GTK2]'\ngtk3=\"on\"\n\n\n# IP Address\n\n\n# Website to ping for the public IP\n#\n# Default: 'http://ident.me'\n# Values:  'url'\n# Flag:    --ip_host\npublic_ip_host=\"http://ident.me\"\n\n# Public IP timeout.\n#\n# Default: '2'\n# Values:  'int'\n# Flag:    --ip_timeout\npublic_ip_timeout=2\n\n\n# Desktop Environment\n\n\n# Show Desktop Environment version\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --de_version\nde_version=\"on\"\n\n\n# Disk\n\n\n# Which disks to display.\n# The values can be any /dev/sdXX, mount point or directory.\n# NOTE: By default we only show the disk info for '/'.\n#\n# Default: '/'\n# Values:  '/', '/dev/sdXX', '/path/to/drive'.\n# Flag:    --disk_show\n#\n# Example:\n# disk_show=('/' '/dev/sdb1'):\n#      'Disk (/): 74G / 118G (66%)'\n#      'Disk (/mnt/Videos): 823G / 893G (93%)'\n#\n# disk_show=('/'):\n#      'Disk (/): 74G / 118G (66%)'\n#\ndisk_show=('/')\n\n# Disk subtitle.\n# What to append to the Disk subtitle.\n#\n# Default: 'mount'\n# Values:  'mount', 'name', 'dir', 'none'\n# Flag:    --disk_subtitle\n#\n# Example:\n# name:   'Disk (/dev/sda1): 74G / 118G (66%)'\n#         'Disk (/dev/sdb2): 74G / 118G (66%)'\n#\n# mount:  'Disk (/): 74G / 118G (66%)'\n#         'Disk (/mnt/Local Disk): 74G / 118G (66%)'\n#         'Disk (/mnt/Videos): 74G / 118G (66%)'\n#\n# dir:    'Disk (/): 74G / 118G (66%)'\n#         'Disk (Local Disk): 74G / 118G (66%)'\n#         'Disk (Videos): 74G / 118G (66%)'\n#\n# none:   'Disk: 74G / 118G (66%)'\n#         'Disk: 74G / 118G (66%)'\n#         'Disk: 74G / 118G (66%)'\ndisk_subtitle=\"mount\"\n\n# Disk percent.\n# Show/Hide disk percent.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --disk_percent\n#\n# Example:\n# on:  'Disk (/): 74G / 118G (66%)'\n# off: 'Disk (/): 74G / 118G'\ndisk_percent=\"on\"\n\n\n# Song\n\n\n# Manually specify a music player.\n#\n# Default: 'auto'\n# Values:  'auto', 'player-name'\n# Flag:    --music_player\n#\n# Available values for 'player-name':\n#\n# amarok\n# audacious\n# banshee\n# bluemindo\n# clementine\n# cmus\n# deadbeef\n# deepin-music\n# dragon\n# elisa\n# exaile\n# gnome-music\n# gmusicbrowser\n# gogglesmm\n# guayadeque\n# io.elementary.music\n# iTunes\n# juk\n# lollypop\n# mocp\n# mopidy\n# mpd\n# muine\n# netease-cloud-music\n# olivia\n# playerctl\n# pogo\n# pragha\n# qmmp\n# quodlibet\n# rhythmbox\n# sayonara\n# smplayer\n# spotify\n# strawberry\n# tauonmb\n# tomahawk\n# vlc\n# xmms2d\n# xnoise\n# yarock\nmusic_player=\"auto\"\n\n# Format to display song information.\n#\n# Default: '%artist% - %album% - %title%'\n# Values:  '%artist%', '%album%', '%title%'\n# Flag:    --song_format\n#\n# Example:\n# default: 'Song: Jet - Get Born - Sgt Major'\nsong_format=\"%artist% - %album% - %title%\"\n\n# Print the Artist, Album and Title on separate lines\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --song_shorthand\n#\n# Example:\n# on:  'Artist: The Fratellis'\n#      'Album: Costello Music'\n#      'Song: Chelsea Dagger'\n#\n# off: 'Song: The Fratellis - Costello Music - Chelsea Dagger'\nsong_shorthand=\"off\"\n\n# 'mpc' arguments (specify a host, password etc).\n#\n# Default:  ''\n# Example: mpc_args=(-h HOST -P PASSWORD)\nmpc_args=()\n\n\n# Text Colors\n\n\n# Text Colors\n#\n# Default:  'distro'\n# Values:   'distro', 'num' 'num' 'num' 'num' 'num' 'num'\n# Flag:     --colors\n#\n# Each number represents a different part of the text in\n# this order: 'title', '@', 'underline', 'subtitle', 'colon', 'info'\n#\n# Example:\n# colors=(distro)      - Text is colored based on Distro colors.\n# colors=(4 6 1 8 8 6) - Text is colored in the order above.\ncolors=(distro)\n\n\n# Text Options\n\n\n# Toggle bold text\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --bold\nbold=\"on\"\n\n# Enable/Disable Underline\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --underline\nunderline_enabled=\"on\"\n\n# Underline character\n#\n# Default:  '-'\n# Values:   'string'\n# Flag:     --underline_char\nunderline_char=\"-\"\n\n\n# Info Separator\n# Replace the default separator with the specified string.\n#\n# Default:  ':'\n# Flag:     --separator\n#\n# Example:\n# separator=\"->\":   'Shell-> bash'\n# separator=\" =\":   'WM = dwm'\nseparator=\":\"\n\n\n# Color Blocks\n\n\n# Color block range\n# The range of colors to print.\n#\n# Default:  '0', '15'\n# Values:   'num'\n# Flag:     --block_range\n#\n# Example:\n#\n# Display colors 0-7 in the blocks.  (8 colors)\n# neofetch --block_range 0 7\n#\n# Display colors 0-15 in the blocks. (16 colors)\n# neofetch --block_range 0 15\nblock_range=(0 15)\n\n# Toggle color blocks\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --color_blocks\ncolor_blocks=\"off\"\n\n# Color block width in spaces\n#\n# Default:  '3'\n# Values:   'num'\n# Flag:     --block_width\nblock_width=3\n\n# Color block height in lines\n#\n# Default:  '1'\n# Values:   'num'\n# Flag:     --block_height\nblock_height=1\n\n# Color Alignment\n#\n# Default: 'auto'\n# Values: 'auto', 'num'\n# Flag: --col_offset\n#\n# Number specifies how far from the left side of the terminal (in spaces) to\n# begin printing the columns, in case you want to e.g. center them under your\n# text.\n# Example:\n# col_offset=\"auto\" - Default behavior of neofetch\n# col_offset=7      - Leave 7 spaces then print the colors\ncol_offset=\"auto\"\n\n# Progress Bars\n\n\n# Bar characters\n#\n# Default:  '-', '='\n# Values:   'string', 'string'\n# Flag:     --bar_char\n#\n# Example:\n# neofetch --bar_char 'elapsed' 'total'\n# neofetch --bar_char '-' '='\nbar_char_elapsed=\"-\"\nbar_char_total=\"=\"\n\n# Toggle Bar border\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --bar_border\nbar_border=\"on\"\n\n# Progress bar length in spaces\n# Number of chars long to make the progress bars.\n#\n# Default:  '15'\n# Values:   'num'\n# Flag:     --bar_length\nbar_length=15\n\n# Progress bar colors\n# When set to distro, uses your distro's logo colors.\n#\n# Default:  'distro', 'distro'\n# Values:   'distro', 'num'\n# Flag:     --bar_colors\n#\n# Example:\n# neofetch --bar_colors 3 4\n# neofetch --bar_colors distro 5\nbar_color_elapsed=\"distro\"\nbar_color_total=\"distro\"\n\n\n# Info display\n# Display a bar with the info.\n#\n# Default: 'off'\n# Values:  'bar', 'infobar', 'barinfo', 'off'\n# Flags:   --cpu_display\n#          --memory_display\n#          --battery_display\n#          --disk_display\n#\n# Example:\n# bar:     '[---=======]'\n# infobar: 'info [---=======]'\n# barinfo: '[---=======] info'\n# off:     'info'\ncpu_display=\"off\"\nmemory_display=\"off\"\nbattery_display=\"off\"\ndisk_display=\"off\"\n\n\n# Backend Settings\n\nimage_backend=\"ascii\"\nimage_source=\"ascii\"\nascii=\"/home/swplex/.config/neofetch/ascii/plex9.txt\"\nascii_distro=\"none\"\nascii_colors=(208 240)\n\n\n# Image backend.\n#\n# Default:  'ascii'\n# Values:   'ascii', 'caca', 'chafa', 'jp2a', 'iterm2', 'off',\n#           'pot', 'termpix', 'pixterm', 'tycat', 'w3m', 'kitty'\n# Flag:     --backend\n#image_backend=\"ascii\"\ntitle_color=\"\\e[38;5;208m\"\nunderline_color=\"\\e[90m\"\nascii_padding=2\n# Image Source\n#\n# Which image or ascii file to display.\n#\n# Default:  'auto'\n# Values:   'auto', 'ascii', 'wallpaper', '/path/to/img', '/path/to/ascii', '/path/to/dir/'\n#           'command output (neofetch --ascii \"$(fortune | cowsay -W 30)\")'\n# Flag:     --source\n#\n# NOTE: 'auto' will pick the best image source for whatever image backend is used.\n#       In ascii mode, distro ascii art will be used and in an image mode, your\n#       wallpaper will be used.\n#image_source=\"ascii\"\n#ascii=\"/home/swplex/.config/neofetch/ascii/plex9.txt\"\n\n# Ascii Options\n\n\n# Ascii distro\n# Which distro's ascii art to display.\n#\n# Default: 'auto'\n# Values:  'auto', 'distro_name'\n# Flag:    --ascii_distro\n# NOTE: AIX, Alpine, Anarchy, Android, Antergos, antiX, \"AOSC OS\",\n#       \"AOSC OS/Retro\", Apricity, ArcoLinux, ArchBox, ARCHlabs,\n#       ArchStrike, XFerience, ArchMerge, Arch, Artix, Arya, Bedrock,\n#       Bitrig, BlackArch, BLAG, BlankOn, BlueLight, bonsai, BSD,\n#       BunsenLabs, Calculate, Carbs, CentOS, Chakra, ChaletOS,\n#       Chapeau, Chrom*, Cleanjaro, ClearOS, Clear_Linux, Clover,\n#       Condres, Container_Linux, CRUX, Cucumber, Debian, Deepin,\n#       DesaOS, Devuan, DracOS, DarkOs, DragonFly, Drauger, Elementary,\n#       EndeavourOS, Endless, EuroLinux, Exherbo, Fedora, Feren, FreeBSD,\n#       FreeMiNT, Frugalware, Funtoo, GalliumOS, Garuda, Gentoo, Pentoo,\n#       gNewSense, GNOME, GNU, GoboLinux, Grombyang, Guix, Haiku, Huayra,\n#       Hyperbola, janus, Kali, KaOS, KDE_neon, Kibojoe, Kogaion,\n#       Korora, KSLinux, Kubuntu, LEDE, LFS, Linux_Lite,\n#       LMDE, Lubuntu, Lunar, macos, Mageia, MagpieOS, Mandriva,\n#       Manjaro, Maui, Mer, Minix, LinuxMint, MX_Linux, Namib,\n#       Neptune, NetBSD, Netrunner, Nitrux, NixOS, Nurunner,\n#       NuTyX, OBRevenge, OpenBSD, openEuler, OpenIndiana, openmamba,\n#       OpenMandriva, OpenStage, OpenWrt, osmc, Oracle, OS Elbrus, PacBSD,\n#       Parabola, Pardus, Parrot, Parsix, TrueOS, PCLinuxOS, Peppermint,\n#       popos, Porteus, PostMarketOS, Proxmox, Puppy, PureOS, Qubes, Radix,\n#       Raspbian, Reborn_OS, Redstar, Redcore, Redhat, Refracted_Devuan,\n#       Regata, Rosa, sabotage, Sabayon, Sailfish, SalentOS, Scientific,\n#       Septor, SereneLinux, SharkLinux, Siduction, Slackware, SliTaz,\n#       SmartOS, Solus, Source_Mage, Sparky, Star, SteamOS, SunOS,\n#       openSUSE_Leap, openSUSE_Tumbleweed, openSUSE, SwagArch, Tails,\n#       Trisquel, Ubuntu-Budgie, Ubuntu-GNOME, Ubuntu-MATE, Ubuntu-Studio,\n#       Ubuntu, Venom, Void, Obarun, windows10, Windows7, Xubuntu, Zorin,\n#       and IRIX have ascii logos\n# NOTE: Arch, Ubuntu, Redhat, and Dragonfly have 'old' logo variants.\n#       Use '{distro name}_old' to use the old logos.\n# NOTE: Ubuntu has flavor variants.\n#       Change this to Lubuntu, Kubuntu, Xubuntu, Ubuntu-GNOME,\n#       Ubuntu-Studio, Ubuntu-Mate  or Ubuntu-Budgie to use the flavors.\n# NOTE: Arcolinux, Dragonfly, Fedora, Alpine, Arch, Ubuntu,\n#       CRUX, Debian, Gentoo, FreeBSD, Mac, NixOS, OpenBSD, android,\n#       Antrix, CentOS, Cleanjaro, ElementaryOS, GUIX, Hyperbola,\n#       Manjaro, MXLinux, NetBSD, Parabola, POP_OS, PureOS,\n#       Slackware, SunOS, LinuxLite, OpenSUSE, Raspbian,\n#       postmarketOS, and Void have a smaller logo variant.\n#       Use '{distro name}_small' to use the small variants.\nascii_distro=\"none\"\n\n# Ascii Colors\n#\n# Default:  'distro'\n# Values:   'distro', 'num' 'num' 'num' 'num' 'num' 'num'\n# Flag:     --ascii_colors\n#\n# Example:\n# ascii_colors=(distro)      - Ascii is colored based on Distro colors.\n# ascii_colors=(4 6 1 8 8 6) - Ascii is colored using these colors.\nascii_colors=(208 7)\nascii_padding=2\n# Bold ascii logo\n# Whether or not to bold the ascii logo.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --ascii_bold\nascii_bold=\"on\"\n\n\n# Image Options\n\n\n# Image loop\n# Setting this to on will make neofetch redraw the image constantly until\n# Ctrl+C is pressed. This fixes display issues in some terminal emulators.\n#\n# Default:  'off'\n# Values:   'on', 'off'\n# Flag:     --loop\nimage_loop=\"off\"\n\n# Thumbnail directory\n#\n# Default: '~/.cache/thumbnails/neofetch'\n# Values:  'dir'\nthumbnail_dir=\"${XDG_CACHE_HOME:-${HOME}/.cache}/thumbnails/neofetch\"\n\n# Crop mode\n#\n# Default:  'normal'\n# Values:   'normal', 'fit', 'fill'\n# Flag:     --crop_mode\n#\n# See this wiki page to learn about the fit and fill options.\n# https://github.com/dylanaraps/neofetch/wiki/What-is-Waifu-Crop%3F\ncrop_mode=\"normal\"\n\n# Crop offset\n# Note: Only affects 'normal' crop mode.\n#\n# Default:  'center'\n# Values:   'northwest', 'north', 'northeast', 'west', 'center'\n#           'east', 'southwest', 'south', 'southeast'\n# Flag:     --crop_offset\ncrop_offset=\"center\"\n\n# Image size\n# The image is half the terminal width by default.\n#\n# Default: 'auto'\n# Values:  'auto', '00px', '00%', 'none'\n# Flags:   --image_size\n#          --size\nimage_size=\"auto\"\n\n# Gap between image and text\n#\n# Default: '3'\n# Values:  'num', '-num'\n# Flag:    --gap\ngap=1\n\n# Image offsets\n# Only works with the w3m backend.\n#\n# Default: '0'\n# Values:  'px'\n# Flags:   --xoffset\n#          --yoffset\nyoffset=0\nxoffset=0\n\n# Image background color\n# Only works with the w3m backend.\n#\n# Default: ''\n# Values:  'color', 'blue'\n# Flag:    --bg_color\nbackground_color=\n\n\n# Misc Options\n\n# Stdout mode\n# Turn off all colors and disables image backend (ASCII/Image).\n# Useful for piping into another command.\n# Default: 'off'\n# Values: 'on', 'off'\nstdout=\"off\"";
+
+function hexToAnsi256(hex){
+  const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex||'');
+  if(!m)return 7;
+  const r=parseInt(m[1],16),g=parseInt(m[2],16),b=parseInt(m[3],16);
+  if(Math.abs(r-g)<22&&Math.abs(g-b)<22){
+    const v=Math.round((r+g+b)/3);
+    if(v<8)return 16;if(v>248)return 231;
+    return Math.round((v-8)/247*24)+232;
+  }
+  return 16+36*Math.round(r/255*5)+6*Math.round(g/255*5)+Math.round(b/255*5);
+}
+function hexToAnsiEsc(hex){return'\\e[38;5;'+hexToAnsi256(hex)+'m';}
+function hexToAnsi033(hex){return'\\033[38;5;'+hexToAnsi256(hex)+'m';}
+
+function colourToAnsi(val){
+  if(!val)return'\\e[38;5;7m';
+  if(/^#[0-9a-fA-F]{6}$/.test((val||'').trim()))return hexToAnsiEsc(val.trim());
+  if(/^\\e\[/.test(val)||/^\\033/.test(val))return val.trim();
+  return'\\e[38;5;'+val.trim()+'m';
+}
+
+function processNeofetchConfig(vars){
+  let cfg=NEOFETCH_TEMPLATE;
+  const c1=colourToAnsi(vars.colour1||'#005FAF');
+  const c2=colourToAnsi(vars.colour2||'#808080');
+  const c3=colourToAnsi(vars.colour3||'#87AFFF');
+  cfg=cfg.split('${@2@COLOUR1@2@}').join(c1);
+  cfg=cfg.split('${@3@COLOUR2@3@}').join(c2);
+  cfg=cfg.split('${@4@COLOUR3@4@}').join(c3);
+  cfg=cfg.replace(/local @2@COLOUR1@2@="[^"]*"/g,'local _nf_c1="'+c1+'"');
+  cfg=cfg.replace(/local @3@COLOUR2@3@="[^"]*"/g,'local _nf_c2="'+c2+'"');
+  cfg=cfg.replace(/local @4@COLOUR3@4@="[^"]*"/g,'local _nf_c3="'+c3+'"');
+  cfg=cfg.split('@2@COLOUR1@2@').join('_nf_c1');
+  cfg=cfg.split('@3@COLOUR2@3@').join('_nf_c2');
+  cfg=cfg.split('@4@COLOUR3@4@').join('_nf_c3');
+  cfg=cfg.split('@1@DOCKER-CONTAINER@1@').join(vars.dockerContainer||'my-container');
+  cfg=cfg.split('@5@TITLE@5@').join(vars.title||'My Server');
+  cfg=cfg.split('@6@URL@6@').join(vars.url||'https://example.com');
+  cfg=cfg.split('@7@URLTEXT@7@').join(vars.urlText||'Visit Website');
+  return cfg;
+}
+
+function sshMenuBlock(c1,c2,c3,loginDir){
+  const ESC='\\033', CR='\\r';
+  const RST=ESC+'[0m';
+  return [
+    '',
+    'if [ -n "$SSH_CONNECTION" ]; then',
+    '',
+    '    # Change directory on SSH login',
+    '    cd '+loginDir,
+    '',
+    '    # Run Neofetch',
+    '    neofetch --backend chafa --source $HOME/.config/neofetch/image/logo.png --image_size 500px --gap 5',
+    '',
+    '    BLUE="'+c2+'"',
+    '    DARK_BLUE="'+c1+'"',
+    '    WHITE="'+c3+'"',
+    '    RESET="'+RST+'"',
+    '',
+    '    echo -e " Do you want to run ${DARK_BLUE}System Updates${RESET} or ${BLUE}Nothing${RESET} [ ${DARK_BLUE}S${RESET} | ${BLUE}N${RESET} ]"',
+    '',
+    '    _blink_prompt() {',
+    '        while true; do',
+    '            echo -en "'+CR+' ${BLUE}>${RESET}"',
+    '            sleep 0.6',
+    '            echo -en "'+CR+'   "',
+    '            sleep 0.6',
+    '        done',
+    '    }',
+    '',
+    '    _BLINK_PID=$(set +m; _blink_prompt > /dev/tty & echo $!)',
+    '    read answer',
+    '    kill $_BLINK_PID 2>/dev/null',
+    '    wait $_BLINK_PID 2>/dev/null',
+    '    echo -en "'+CR+ESC+'[2K"',
+    '',
+    '    case "$answer" in',
+    '        [Ss]* )',
+    '            echo -e "${BLUE}Running system updates...${RESET}"',
+    '            sudo apt-get update && sudo apt-get upgrade -y',
+    '            echo ""',
+    '            ;;',
+    '        [Nn]* | "" )',
+    '            echo ""',
+    '            echo " Nothing to see here ..."',
+    '            ;;',
+    '        * )',
+    '            echo ""',
+    '            echo " Invalid response. Exiting ..."',
+    '            ;;',
+    '    esac',
+    '    echo ""',
+    '',
+    'fi',
+  ].join('\n');
+}
+
+function updatePromptFn(c1,c2,c3){
+  const ESC='\\033', CR='\\r';
+  const RST=ESC+'[0m';
+  return [
+    '',
+    '# Update prompt function (callable via alias)',
+    'update_prompt() {',
+    '    BLUE="'+c2+'"',
+    '    DARK_BLUE="'+c1+'"',
+    '    WHITE="'+c3+'"',
+    '    RESET="'+RST+'"',
+    '',
+    '    echo -e " Do you want to run ${DARK_BLUE}System Updates${RESET} or ${BLUE}Nothing${RESET} [ ${DARK_BLUE}S${RESET} | ${BLUE}N${RESET} ]"',
+    '',
+    '    _blink_prompt() {',
+    '        while true; do',
+    '            echo -en "'+CR+' ${BLUE}>${RESET}"',
+    '            sleep 0.6',
+    '            echo -en "'+CR+'   "',
+    '            sleep 0.6',
+    '        done',
+    '    }',
+    '',
+    '    _BLINK_PID=$(set +m; _blink_prompt > /dev/tty & echo $!)',
+    '    read answer',
+    '    kill $_BLINK_PID 2>/dev/null',
+    '    wait $_BLINK_PID 2>/dev/null',
+    '    echo -en "'+CR+ESC+'[2K"',
+    '',
+    '    case "$answer" in',
+    '        [Ss]* )',
+    '            echo -e "${BLUE}Running system updates...${RESET}"',
+    '            sudo apt-get update && sudo apt-get upgrade -y',
+    '            echo ""',
+    '            ;;',
+    '        [Nn]* | "" )',
+    '            echo ""',
+    '            echo " Nothing to see here ..."',
+    '            ;;',
+    '        * )',
+    '            echo ""',
+    '            echo " Invalid response. Exiting ..."',
+    '            ;;',
+    '    esac',
+    '    echo ""',
+    '}',
+    '',
+    "alias upp='update_prompt'",
+  ].join('\n');
+}
+
+function buildSSHMenu(bc){
+  const c1=hexToAnsi033(bc.ps1User||'#4ade80');
+  const c2=hexToAnsi033(bc.ps1Host||'#60a5fa');
+  const c3=hexToAnsi033(bc.ps1Path||'#fb923c');
+  const loginDir=(bc.customDir||'').trim()||'~';
+  return sshMenuBlock(c1,c2,c3,loginDir)+updatePromptFn(c1,c2,c3);
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SCRIPT GENERATOR
+══════════════════════════════════════════════════════════ */
+function generateScript({sw,cfg,custom,hostname,distro}){
+  const L=[];
+  const add=(...ls)=>ls.forEach(l=>L.push(l));
+  const sec=t=>add('',`# ${'─'.repeat(56)}`,`# ${t}`,`# ${'─'.repeat(56)}`);
+  const piModel=PI_MODELS.find(m=>m.id===distro.piModel);
+  const osLabel=distro.type==='ubuntu'?'Ubuntu':`Raspberry Pi OS (${piModel?.label||distro.piModel})`;
+
+  add(
+    '#!/usr/bin/env bash',
+    `# ${'═'.repeat(58)}`,
+    `#  LinuxProvisioner  ·  ${hostname||'unnamed-host'}`,
+    `#  OS: ${osLabel}`,
+    `#  Generated: $(date '+%Y-%m-%d %H:%M:%S')`,
+    `# ${'═'.repeat(58)}`,
+    '','set -euo pipefail','',
+    'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"',
+    'info() { echo -e "${CYN}▸ ${RST}$*"; }',
+    'ok()   { echo -e "${GRN}✓ ${RST}$*"; }',
+    'warn() { echo -e "${YLW}⚠ ${RST}$*"; }',
+    '',
+    'if   command -v apt-get &>/dev/null; then PM=apt-get',
+    'elif command -v dnf    &>/dev/null; then PM=dnf',
+    'else PM=yum; fi',
+    `info "OS: ${osLabel}"`,
+    'info "Package manager: $PM"',
+    'info "Updating package index..."',
+    'sudo $PM update -y -qq',
+  );
+
+  if(sw.docker.enabled){
+    sec('Docker & Docker Compose');
+    add('info "Installing Docker..."','curl -fsSL https://get.docker.com | sudo sh','sudo systemctl enable --now docker');
+    if(sw.docker.config.compose)add('sudo $PM install -y docker-compose-plugin');
+    if(sw.docker.config.dockerGroup)add('sudo usermod -aG docker "$USER"','warn "Re-login required for docker group"');
+    if(sw.docker.config.dockerDir)add('info "Creating ~/docker..."','mkdir -p ~/docker','ok "~/docker created"');
+    add('ok "Docker ready"');
+  }
+  if(sw.ncdu.enabled){sec('ncdu');add('info "Installing ncdu..."','sudo $PM install -y ncdu','ok "ncdu ready"');}
+  if(sw.git.enabled){
+    sec('Git');add('info "Installing git..."','sudo $PM install -y git');
+    const{username,email,branch}=sw.git.config;
+    if(username)add(`git config --global user.name "${username}"`);
+    if(email)add(`git config --global user.email "${email}"`);
+    if(branch)add(`git config --global init.defaultBranch ${branch}`);
+    add('ok "Git ready"');
+  }
+  if(sw.neofetch.enabled){
+    sec('Neofetch');
+    add('info "Installing neofetch..."','sudo $PM install -y neofetch','mkdir -p ~/.config/neofetch');
+    const nfc=sw.neofetch.config;
+    // ASCII logo
+    if(nfc.customLogo&&nfc.logo.trim()){
+      add("cat > ~/.config/neofetch/logo.txt << 'LOGOEOF'",nfc.logo.trim(),'LOGOEOF');
+    }
+    // Custom config from template
+    if(nfc.useCustomConfig){
+      const confContent=processNeofetchConfig(nfc.nfVars||{});
+      add("cat > ~/.config/neofetch/config.conf << 'NFEOF'",confContent,'NFEOF');
+    } else {
+      add("cat > ~/.config/neofetch/config.conf << 'NFEOF'",buildNeofetchConf(nfc.customLogo),'NFEOF');
+    }
+    // Image upload
+    if(nfc.uploadImage&&nfc.imageData){
+      const b64=nfc.imageData.split(',')[1]||'';
+      const fname=nfc.imageName||'logo.png';
+      add('info "Uploading neofetch image..."','mkdir -p ~/.config/neofetch/image','# Decode uploaded image',`base64 -d > ~/.config/neofetch/image/${fname} << 'IMGEOF'`,b64,'IMGEOF',`ok "Image saved → ~/.config/neofetch/image/${fname}"`);
+    }
+    // Add neofetch to .bashrc
+    if(nfc.bashrcNeofetch){
+      add('info "Adding neofetch to .bashrc..."','grep -qxF \'neofetch\' ~/.bashrc || echo \'neofetch\' >> ~/.bashrc','ok "neofetch added to .bashrc"');
+    }
+    add('ok "Neofetch ready"');
+  }
+  if(sw.portainer.enabled){
+    sec('Portainer CE');
+    const port=sw.portainer.config.port||'9000';
+    add('info "Starting Portainer..."','docker volume create portainer_data','docker run -d \\','  --name=portainer --restart=always \\',`  -p ${port}:9000 \\`,'  -v /var/run/docker.sock:/var/run/docker.sock \\','  -v portainer_data:/data \\','  portainer/portainer-ce:latest',`ok "Portainer on port ${port}"`);
+  }
+  if(sw.wazuh.enabled){
+    sec('Wazuh Agent');
+    const{managerIP,managerPort}=sw.wazuh.config;
+    add('info "Installing Wazuh Agent..."','curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH \\','  | gpg --no-default-keyring \\','  --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import','chmod 644 /usr/share/keyrings/wazuh.gpg','echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" \\','  | sudo tee /etc/apt/sources.list.d/wazuh.list','sudo apt-get update -qq',`WAZUH_MANAGER="${managerIP||'YOUR_MANAGER_IP'}" WAZUH_MANAGER_PORT="${managerPort||'1514'}" \\`,'sudo apt-get install -y wazuh-agent','sudo systemctl daemon-reload && sudo systemctl enable --now wazuh-agent','ok "Wazuh Agent running"');
+  }
+  if(sw.duf.enabled){
+    sec('duf');
+    add('info "Installing duf..."','ARCH=$(dpkg --print-architecture 2>/dev/null||uname -m)','case "$ARCH" in','  x86_64|amd64) DARCH=amd64;;','  aarch64|arm64) DARCH=arm64;;','  armv7l|armhf)  DARCH=armv7;;','  armv6l)        DARCH=armv6;;','  *) DARCH=amd64;;','esac','if sudo $PM install -y duf 2>/dev/null; then','  ok "duf installed via $PM"','else','  DUF_TAG=$(curl -s https://api.github.com/repos/muesli/duf/releases/latest|grep -oP \'(?<="tag_name": ")[^"]+\')','  wget -qO /tmp/duf.deb "https://github.com/muesli/duf/releases/download/${DUF_TAG}/duf_${DUF_TAG#v}_linux_${DARCH}.deb"','  sudo dpkg -i /tmp/duf.deb && ok "duf installed"','fi');
+  }
+  if(custom.length>0){
+    sec('Custom Commands');
+    custom.forEach(c=>{if(c.label)add(`# ${c.label}`);if(c.command.trim())add(c.command.trim())});
+  }
+  if(cfg.sshKeys.enabled&&cfg.sshKeys.config.keys.trim()){
+    sec('SSH Authorized Keys');
+    add('info "Adding SSH keys..."','mkdir -p ~/.ssh && chmod 700 ~/.ssh','touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys');
+    cfg.sshKeys.config.keys.split('\n').filter(k=>k.trim()).forEach(k=>add(`echo '${k.trim()}' >> ~/.ssh/authorized_keys`));
+    add('ok "SSH keys added"');
+  }
+  if(cfg.bashrc.enabled){
+    sec('.bashrc Configuration');
+    const bc=cfg.bashrc.config;
+    add('info "Configuring .bashrc..."',"cp ~/.bashrc ~/.bashrc.bak.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true");
+    if(bc.mode==='custom'&&bc.customContent.trim()){
+      add('',"cat >> ~/.bashrc << 'BASHRCEOF'",'',"# ── LinuxProvisioner ──────────────────────────────────",bc.customContent,'','BASHRCEOF');
+    } else {
+      add('',"cat >> ~/.bashrc << 'BASHRCEOF'",'','# ── LinuxProvisioner ──────────────────────────────────');
+      if(bc.aliases.length>0){add('','# Aliases');bc.aliases.filter(a=>a.name&&a.cmd).forEach(a=>add(`alias ${a.name}='${a.cmd}'`));}
+      add('','# PS1 Prompt',`PS1='${buildPS1(bc)}'`);
+      if(bc.sshMenu){
+        add('',buildSSHMenu(bc));
+      } else if(bc.customDir.trim()){
+        add('','# Login directory',`cd ${bc.customDir.trim()}`);
+      }
+      add('','BASHRCEOF');
+    }
+    add('','ok ".bashrc configured"');
+  }
+  add('',`# ${'═'.repeat(58)}`,'echo -e "${GRN}"',`echo "  ┌────────────────────────────────────────────────────┐"`,`echo "  │  ✓  Provisioning complete                          │"`,`echo "  │     Host: ${(hostname||'unnamed').substring(0,44).padEnd(44)}│"`,`echo "  └────────────────────────────────────────────────────┘"`,'echo -e "${RST}"');
+  return L.join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════
+   SYNTAX HIGHLIGHT
+══════════════════════════════════════════════════════════ */
+function hlBash(code){
+  const CC={cmt:'#6a737d',kw:'#f97583',cmd:'#85e89d',str:'#ffea7f',var:'#79b8ff'};
+  return code.split('\n').map((line,i)=>{
+    const n=`<span style="color:${CC.cmt};user-select:none;display:inline-block;width:36px;text-align:right;padding-right:12px">${i+1}</span>`;
+    let h=line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if(line.trimStart().startsWith('#'))return`${n}<span style="color:${CC.cmt};font-style:italic">${h}</span>`;
+    h=h.replace(/\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|export|local|set)\b/g,`<span style="color:${CC.kw}">$1</span>`);
+    h=h.replace(/\b(echo|printf|sudo|apt-get|curl|wget|docker|git|mkdir|chmod|chown|touch|cat|cp|mv|systemctl|usermod|gpg|tee|snap|dpkg|command|free|df|hostname|uptime|awk|cut|bash|sh)\b/g,`<span style="color:${CC.cmd}">$1</span>`);
+    h=h.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g,`<span style="color:${CC.str}">"$1"</span>`);
+    h=h.replace(/'([^']*)'/g,`<span style="color:${CC.str}">'$1'</span>`);
+    h=h.replace(/(\$\{?[\w@#?]+\}?)/g,`<span style="color:${CC.var}">$1</span>`);
+    return`${n}${h}`;
+  }).join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════
+   MICRO COMPONENTS
+══════════════════════════════════════════════════════════ */
+function Toggle({on,onChange}){
+  return <div onClick={onChange} style={{width:38,height:20,borderRadius:10,background:on?C.teal:C.bdr,position:'relative',cursor:'pointer',transition:'background .2s',flexShrink:0}}>
+    <div style={{position:'absolute',top:3,left:on?21:3,width:14,height:14,borderRadius:'50%',background:'#fff',transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,.4)'}}/>
+  </div>;
+}
+function Check({label,checked,onChange}){
+  return <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',marginBottom:8}}>
+    <div onClick={onChange} style={{width:15,height:15,border:`1.5px solid ${checked?C.teal:C.bdr}`,borderRadius:3,background:checked?C.teal:'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,transition:'all .15s',cursor:'pointer'}}>
+      {checked&&<span style={{color:'#fff',fontSize:9,fontWeight:700,lineHeight:1}}>✓</span>}
+    </div>
+    <span style={{fontSize:12,color:C.text,fontFamily:C.sans}}>{label}</span>
+  </label>;
+}
+function Inp({label,value,onChange,placeholder,type='text',rows}){
+  const s={fontSize:12};
+  return <div style={{marginBottom:9}}>
+    {label&&<div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',marginBottom:3,fontFamily:C.sans}}>{label}</div>}
+    {rows
+      ?<textarea rows={rows} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={s}/>
+      :<input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} style={s}/>
+    }
+  </div>;
+}
+function Btn({children,onClick,variant='default',disabled,style={}}){
+  const base={padding:'5px 12px',fontSize:12,borderRadius:6,border:'1px solid',cursor:disabled?'not-allowed':'pointer',fontFamily:C.sans,fontWeight:500,transition:'all .15s',opacity:disabled?.5:1,...style};
+  const variants={
+    default:{borderColor:C.bdr,background:'transparent',color:C.text},
+    primary:{borderColor:C.teal,background:C.tealDim,color:C.teal},
+    danger:{borderColor:'rgba(248,81,73,.4)',background:'rgba(248,81,73,.1)',color:C.red},
+    ghost:{borderColor:'transparent',background:'transparent',color:C.dim},
+  };
+  return <button onClick={disabled?undefined:onClick} style={{...base,...variants[variant]}}>{children}</button>;
+}
+function PS1Preview({cfg,hostname}){
+  return <div style={{background:'#010409',borderRadius:6,padding:'7px 12px',fontFamily:C.mono,fontSize:12,marginBottom:8,border:`1px solid ${C.bdr}`}}>
+    <span style={{color:cfg.ps1User}}>user</span><span style={{color:'#484f58'}}>@</span>
+    <span style={{color:cfg.ps1Host}}>{hostname||'server'}</span><span style={{color:'#484f58'}}>:</span>
+    <span style={{color:cfg.ps1Path}}>~/docker</span><span style={{color:C.text}}> $ </span>
+    <span style={{animation:'blink 1s step-end infinite',color:C.text}}>▊</span>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   NEOFETCH OPTIONS COMPONENT
+══════════════════════════════════════════════════════════ */
+function ColourField({label,value,onChange}){
+  const ansiPreview=colourToAnsi(value);
+  // Estimate preview RGB from ANSI 256 index for swatch
+  const isHex=/^#[0-9a-fA-F]{6}$/.test((value||'').trim());
+  return <div style={{marginBottom:10}}>
+    <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,marginBottom:3}}>{label}</div>
+    <div style={{display:'flex',gap:5,alignItems:'center'}}>
+      {isHex&&<input type="color" value={value.trim()} onChange={e=>onChange(e.target.value)} style={{flexShrink:0}}/>}
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder="#005FAF or 25 or \\e[38;5;25m" style={{flex:1,fontSize:11}}/>
+    </div>
+    <div style={{fontSize:10,color:C.faint,fontFamily:C.mono,marginTop:3}}>→ {ansiPreview}</div>
+  </div>;
+}
+
+function NeofetchOptions({cfg,updSw,lbl}){
+  const updCfg=(f,v)=>updSw('neofetch',f,v);
+  const updVar=(k,v)=>updSw('neofetch','nfVars',{...cfg.nfVars,[k]:v});
+  const fileRef=React.useRef(null);
+
+  function handleImageUpload(e){
+    const file=e.target.files?.[0];
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>updSw('neofetch','imageData',ev.target.result)&&true||updSw('neofetch','imageName',file.name);
+    // chain both updates
+    reader.onload=ev=>{
+      updCfg('imageData',ev.target.result);
+      updCfg('imageName',file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return <div style={{paddingTop:8}}>
+
+    {/* ── Image Upload ── */}
+    <Check label="Upload PNG image to ~/.config/neofetch/image/" checked={cfg.uploadImage} onChange={()=>updCfg('uploadImage',!cfg.uploadImage)}/>
+    {cfg.uploadImage&&<div style={{marginBottom:10,marginLeft:23}}>
+      <input ref={fileRef} type="file" accept=".png,image/png" onChange={handleImageUpload} style={{display:'none'}}/>
+      <div style={{display:'flex',gap:6,alignItems:'center',marginBottom:4}}>
+        <button onClick={()=>fileRef.current&&fileRef.current.click()} style={{padding:'4px 10px',fontSize:11,borderRadius:5,border:`1px solid ${C.bdr}`,background:'transparent',cursor:'pointer',color:C.text,fontFamily:C.sans}}>
+          Choose PNG…
+        </button>
+        {cfg.imageName&&<span style={{fontSize:11,color:C.teal,fontFamily:C.mono,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{cfg.imageName}</span>}
+        {cfg.imageData&&<span style={{fontSize:10,color:C.green}}>✓ loaded</span>}
+      </div>
+      {cfg.imageData&&<img src={cfg.imageData} alt="preview" style={{maxHeight:60,maxWidth:120,borderRadius:4,border:`1px solid ${C.bdr}`,objectFit:'contain',background:'#000'}}/>}
+      <div style={{fontSize:10,color:C.faint,fontFamily:C.sans,marginTop:4}}>
+        Saved to ~/.config/neofetch/image/{cfg.imageName||'logo.png'}
+      </div>
+    </div>}
+
+    {/* ── Custom Config ── */}
+    <Check label="Use custom config.conf from template" checked={cfg.useCustomConfig} onChange={()=>updCfg('useCustomConfig',!cfg.useCustomConfig)}/>
+    {cfg.useCustomConfig&&<div style={{marginLeft:23,marginBottom:8}}>
+      <div style={{background:C.bg,borderRadius:6,padding:'10px 12px',border:`1px solid ${C.bdr}`,marginBottom:8}}>
+        <div style={{fontSize:11,fontWeight:600,color:C.text,fontFamily:C.sans,marginBottom:6}}>Template Variables</div>
+
+        <div style={{marginBottom:9}}>
+          {lbl('Docker container name',{marginBottom:3})}
+          <input value={cfg.nfVars.dockerContainer} onChange={e=>updVar('dockerContainer',e.target.value)} placeholder="my-container" style={{fontSize:11}}/>
+        </div>
+
+        <ColourField label="Colour 1 (primary)" value={cfg.nfVars.colour1} onChange={v=>updVar('colour1',v)}/>
+        <ColourField label="Colour 2 (secondary)" value={cfg.nfVars.colour2} onChange={v=>updVar('colour2',v)}/>
+        <ColourField label="Colour 3 (accent)" value={cfg.nfVars.colour3} onChange={v=>updVar('colour3',v)}/>
+
+        <div style={{marginBottom:9}}>
+          {lbl('Title text',{marginBottom:3})}
+          <input value={cfg.nfVars.title} onChange={e=>updVar('title',e.target.value)} placeholder="My Server" style={{fontSize:11}}/>
+        </div>
+        <div style={{marginBottom:9}}>
+          {lbl('URL',{marginBottom:3})}
+          <input value={cfg.nfVars.url} onChange={e=>updVar('url',e.target.value)} placeholder="https://example.com" style={{fontSize:11}}/>
+        </div>
+        <div style={{marginBottom:2}}>
+          {lbl('URL link text',{marginBottom:3})}
+          <input value={cfg.nfVars.urlText} onChange={e=>updVar('urlText',e.target.value)} placeholder="Visit Website" style={{fontSize:11}}/>
+        </div>
+      </div>
+      <div style={{fontSize:10,color:C.faint,fontFamily:C.sans}}>
+        Config written to ~/.config/neofetch/config.conf
+      </div>
+    </div>}
+
+    {/* ── Add to .bashrc ── */}
+    <Check label="Add 'neofetch' command to .bashrc" checked={cfg.bashrcNeofetch} onChange={()=>updCfg('bashrcNeofetch',!cfg.bashrcNeofetch)}/>
+
+  </div>;
+}
+
+function SwItem({label,desc,icon,on,onToggle,expanded,onExpand,children}){
+  const hasConf=!!children;
+  return <div style={{borderBottom:`1px solid ${C.bdr}`}}>
+    <div style={{display:'flex',alignItems:'center',gap:10,padding:'11px 16px',cursor:hasConf&&on?'pointer':'default',background:on?C.tealDim:'transparent',transition:'background .15s'}} onClick={hasConf&&on?onExpand:undefined}>
+      <div style={{width:30,height:30,borderRadius:7,background:on?C.teal:'#21262d',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:on?'#fff':C.dim,flexShrink:0,transition:'all .2s'}}>{icon}</div>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:13,fontWeight:on?500:400,color:on?C.text:C.faint,fontFamily:C.sans,transition:'color .2s'}}>{label}</div>
+        <div style={{fontSize:11,color:C.dim,fontFamily:C.sans,marginTop:1}}>{desc}</div>
+      </div>
+      {hasConf&&on&&<span style={{fontSize:9,color:C.dim,transform:expanded?'rotate(180deg)':'none',display:'inline-block',transition:'transform .2s',marginRight:4}}>▼</span>}
+      <Toggle on={on} onChange={e=>{e.stopPropagation&&e.stopPropagation();onToggle();}}/>
+    </div>
+    {on&&expanded&&children&&<div style={{padding:'8px 16px 16px 56px',background:C.card,borderTop:`1px solid ${C.bdr}`}}>{children}</div>}
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TEMPLATE EDIT MODAL
+══════════════════════════════════════════════════════════ */
+function TemplateEditModal({template,onSave,onClose}){
+  const [name,setName]=useState(template?.name||'');
+  const [content,setContent]=useState(template?.content||'');
+  const [varLabels,setVarLabels]=useState(template?.varLabels||{});
+  const [varDefaults,setVarDefaults]=useState(template?.varDefaults||{});
+  const vars=useMemo(()=>extractVars(content),[content]);
+
+  const save=()=>{
+    if(!name.trim())return;
+    onSave({id:template?.id||uid(),name:name.trim(),content,varLabels,varDefaults});
+  };
+
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div style={{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:12,width:'min(880px,95vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',overflow:'hidden',animation:'fadeIn .15s ease'}}>
+      {/* header */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${C.bdr}`,flexShrink:0}}>
+        <span style={{fontSize:14,fontWeight:500,color:C.text,fontFamily:C.sans}}>{template?.id?'Edit Template':'New Template'}</span>
+        <Btn onClick={onClose} variant='ghost'>✕</Btn>
+      </div>
+      {/* name */}
+      <div style={{padding:'14px 20px 0',flexShrink:0}}>
+        <Inp label="Template name" value={name} onChange={setName} placeholder="My Server Config"/>
+      </div>
+      {/* body */}
+      <div style={{display:'flex',gap:0,flex:1,overflow:'hidden',minHeight:0}}>
+        {/* content editor */}
+        <div style={{flex:1,padding:'0 0 0 20px',display:'flex',flexDirection:'column',overflow:'hidden',borderRight:`1px solid ${C.bdr}`}}>
+          <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,padding:'10px 0 5px'}}>
+            Content — use {'{{VARIABLE}}'} for placeholders
+          </div>
+          <textarea
+            value={content}
+            onChange={e=>setContent(e.target.value)}
+            placeholder={'# Your .bashrc additions here\n# Use {{HOSTNAME}}, {{LOGIN_DIR}} etc for variables\nalias ll=\'ls -alF\'\ncd {{LOGIN_DIR}}'}
+            style={{flex:1,fontFamily:C.mono,fontSize:11,lineHeight:1.65,resize:'none',marginBottom:14}}
+          />
+        </div>
+        {/* variables panel */}
+        <div style={{width:280,flexShrink:0,padding:'0 16px',overflowY:'auto',display:'flex',flexDirection:'column'}}>
+          <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,padding:'10px 0 8px'}}>
+            Detected variables ({vars.length})
+          </div>
+          {vars.length===0&&<div style={{fontSize:12,color:C.faint,fontFamily:C.sans,marginTop:4}}>No {'{{VARIABLES}}'} detected yet.</div>}
+          {vars.map(k=><div key={k} style={{marginBottom:12}}>
+            <div style={{fontSize:11,fontFamily:C.mono,color:C.teal,marginBottom:4}}>{`{{${k}}}`}</div>
+            <div style={{fontSize:10,color:C.dim,marginBottom:3,fontFamily:C.sans}}>Label</div>
+            <input value={varLabels[k]||''} onChange={e=>setVarLabels(p=>({...p,[k]:e.target.value}))} placeholder={k} style={{fontSize:11,marginBottom:4}}/>
+            <div style={{fontSize:10,color:C.dim,marginBottom:3,fontFamily:C.sans}}>Default value</div>
+            <input value={varDefaults[k]||''} onChange={e=>setVarDefaults(p=>({...p,[k]:e.target.value}))} placeholder="(empty)" style={{fontSize:11}}/>
+          </div>)}
+        </div>
+      </div>
+      {/* footer */}
+      <div style={{display:'flex',gap:8,justifyContent:'flex-end',padding:'12px 20px',borderTop:`1px solid ${C.bdr}`,flexShrink:0}}>
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn onClick={save} variant='primary' disabled={!name.trim()||!content.trim()}>Save Template</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TEMPLATE USE MODAL
+══════════════════════════════════════════════════════════ */
+function TemplateUseModal({template,onApply,onClose}){
+  const vars=useMemo(()=>extractVars(template.content),[template.content]);
+  const [vals,setVals]=useState(()=>{
+    const v={};
+    vars.forEach(k=>{v[k]=template.varDefaults?.[k]||''});
+    return v;
+  });
+  const preview=useMemo(()=>resolveTemplate(template.content,vals),[template.content,vals]);
+
+  return <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+    <div style={{background:C.surf,border:`1px solid ${C.bdr}`,borderRadius:12,width:'min(820px,95vw)',maxHeight:'90vh',display:'flex',flexDirection:'column',overflow:'hidden',animation:'fadeIn .15s ease'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',borderBottom:`1px solid ${C.bdr}`,flexShrink:0}}>
+        <div>
+          <span style={{fontSize:14,fontWeight:500,color:C.text,fontFamily:C.sans}}>Use template: </span>
+          <span style={{fontSize:14,color:C.teal,fontFamily:C.sans}}>{template.name}</span>
+        </div>
+        <Btn onClick={onClose} variant='ghost'>✕</Btn>
+      </div>
+      <div style={{display:'flex',flex:1,overflow:'hidden',minHeight:0}}>
+        {/* variable fields */}
+        <div style={{width:260,flexShrink:0,padding:'14px 16px',overflowY:'auto',borderRight:`1px solid ${C.bdr}`}}>
+          <div style={{fontSize:11,color:C.dim,fontFamily:C.sans,marginBottom:12}}>Fill in the variables below:</div>
+          {vars.length===0&&<div style={{fontSize:12,color:C.faint,fontFamily:C.sans}}>No variables in this template.</div>}
+          {vars.map(k=><div key={k} style={{marginBottom:10}}>
+            <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,marginBottom:3}}>
+              {template.varLabels?.[k]||k}
+            </div>
+            <input value={vals[k]||''} onChange={e=>setVals(p=>({...p,[k]:e.target.value}))} placeholder={template.varDefaults?.[k]||`{{${k}}}`} style={{fontSize:12}}/>
+          </div>)}
+        </div>
+        {/* preview */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,padding:'10px 14px 5px',flexShrink:0}}>Preview</div>
+          <pre style={{flex:1,overflowY:'auto',margin:0,padding:'4px 14px 14px',fontFamily:C.mono,fontSize:11,lineHeight:1.65,color:C.text,background:'transparent',whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{preview}</pre>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:8,justifyContent:'flex-end',padding:'12px 20px',borderTop:`1px solid ${C.bdr}`,flexShrink:0}}>
+        <Btn onClick={onClose}>Cancel</Btn>
+        <Btn onClick={()=>onApply(preview)} variant='primary'>Apply to .bashrc</Btn>
+      </div>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TERMINAL COMPONENT
+══════════════════════════════════════════════════════════ */
+function Terminal({lines,status,sudoPrompt,sudoPassword,onSendInput}){
+  const ref=useRef(null);
+  const [stdinVal,setStdinVal]=useState('');
+  useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight},[lines]);
+
+  const statusMeta={
+    idle:{color:C.faint,label:'Ready'},
+    connecting:{color:'#22d3ee',label:'Connecting…'},
+    running:{color:C.amber,label:'Running…'},
+    success:{color:C.green,label:'Complete'},
+    error:{color:C.red,label:'Error'},
+    disconnected:{color:C.amber,label:'Disconnected'},
+  };
+  const sm=statusMeta[status]||statusMeta.idle;
+  const isActive=status==='connecting'||status==='running';
+
+  function sendInput(val){
+    if(onSendInput)onSendInput(val+'\n');
+    setStdinVal('');
+  }
+
+  return <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
+    {/* status bar */}
+    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px',borderBottom:`1px solid ${C.bdr}`,flexShrink:0}}>
+      <div style={{width:8,height:8,borderRadius:'50%',background:sm.color,flexShrink:0}}/>
+      <span style={{fontSize:11,color:sm.color,fontFamily:C.sans}}>{sm.label}</span>
+      <span style={{fontSize:10,color:C.faint,fontFamily:C.mono,marginLeft:'auto'}}>{lines.length} lines</span>
+    </div>
+
+    {/* sudo prompt banner */}
+    {sudoPrompt&&isActive&&<div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'rgba(210,153,34,0.1)',borderBottom:`1px solid rgba(210,153,34,0.3)`,flexShrink:0}}>
+      <span style={{fontSize:12,color:C.amber,fontFamily:C.sans}}>🔐 sudo password required</span>
+      <div style={{flex:1}}/>
+      {sudoPassword
+        ?<Btn onClick={()=>onSendInput&&onSendInput(sudoPassword+'\n')} variant='primary' style={{fontSize:11,padding:'3px 12px'}}>Send sudo password</Btn>
+        :<span style={{fontSize:11,color:C.faint,fontFamily:C.sans}}>Enter password in the field below</span>
+      }
+    </div>}
+
+    {/* output */}
+    <div ref={ref} style={{flex:1,overflowY:'auto',padding:'10px 12px',fontFamily:C.mono,fontSize:11,lineHeight:1.7,background:C.bg}}>
+      {lines.length===0&&status==='idle'&&<div style={{color:C.faint}}>Terminal output will appear here once deployment starts...</div>}
+      {lines.map((line,i)=><div key={i} style={{color:line.type==='stderr'?C.red:lineColor(line.text),whiteSpace:'pre-wrap',wordBreak:'break-word'}}>{stripAnsi(line.text)}</div>)}
+      {isActive&&<div style={{color:'#22d3ee',animation:'blink 1s step-end infinite'}}>▊</div>}
+    </div>
+
+    {/* stdin input bar — always visible when running */}
+    {isActive&&<div style={{display:'flex',gap:6,padding:'7px 10px',borderTop:`1px solid ${C.bdr}`,background:C.surf,flexShrink:0,alignItems:'center'}}>
+      <span style={{fontSize:10,color:C.faint,fontFamily:C.sans,flexShrink:0}}>stdin</span>
+      <input
+        value={stdinVal}
+        onChange={e=>setStdinVal(e.target.value)}
+        onKeyDown={e=>{if(e.key==='Enter'&&stdinVal.trim())sendInput(stdinVal)}}
+        placeholder="Type input and press Enter to send…"
+        style={{flex:1,fontSize:11}}
+      />
+      <Btn onClick={()=>stdinVal.trim()&&sendInput(stdinVal)} variant='primary' style={{fontSize:11,padding:'3px 10px',flexShrink:0}}>Send ↵</Btn>
+    </div>}
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DEPLOY PANEL
+══════════════════════════════════════════════════════════ */
+function DeployPanel({script,hostname,terminal,onDeploy,onAbort,onSendInput}){
+  const [creds,setCreds]=useState({host:'',port:'22',username:'root',authType:'password',password:'',privateKey:'',sudoPassword:'',sudoSameAsSSH:true});
+  const upd=(k,v)=>setCreds(p=>({...p,[k]:v}));
+  const canDeploy=terminal.status!=='connecting'&&terminal.status!=='running';
+  const isRunning=terminal.status==='connecting'||terminal.status==='running';
+  const effectiveSudo=creds.sudoSameAsSSH?creds.password:creds.sudoPassword;
+
+  useEffect(()=>{if(hostname&&!creds.host)setCreds(p=>({...p,host:hostname}));},[hostname]);
+
+  return <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
+    <div style={{padding:'12px 16px',background:C.surf,borderBottom:`1px solid ${C.bdr}`,flexShrink:0}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 80px 1fr',gap:8,marginBottom:8}}>
+        <Inp label="Host / IP" value={creds.host} onChange={v=>upd('host',v)} placeholder="192.168.1.x"/>
+        <Inp label="Port" value={creds.port} onChange={v=>upd('port',v)} placeholder="22"/>
+        <Inp label="Username" value={creds.username} onChange={v=>upd('username',v)} placeholder="root"/>
+      </div>
+      <div style={{display:'flex',gap:16,marginBottom:8,alignItems:'center'}}>
+        <span style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,flexShrink:0}}>Auth</span>
+        {[['password','Password'],['key','Private Key']].map(([v,l])=>(
+          <label key={v} style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',fontSize:12,color:C.text,fontFamily:C.sans}}>
+            <input type="radio" name="auth" checked={creds.authType===v} onChange={()=>upd('authType',v)} style={{accentColor:C.teal}}/>
+            {l}
+          </label>
+        ))}
+      </div>
+      {creds.authType==='password'
+        ?<Inp label="SSH Password" value={creds.password} onChange={v=>upd('password',v)} placeholder="••••••••" type="password"/>
+        :<Inp label="Private Key (PEM format)" value={creds.privateKey} onChange={v=>upd('privateKey',v)} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" rows={3}/>
+      }
+      {/* sudo password row */}
+      <div style={{marginBottom:4}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+          <div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans}}>Sudo Password</div>
+          <label style={{display:'flex',alignItems:'center',gap:5,cursor:'pointer',marginLeft:'auto'}}>
+            <input type="checkbox" checked={creds.sudoSameAsSSH} onChange={e=>upd('sudoSameAsSSH',e.target.checked)} style={{accentColor:C.teal,width:'auto'}}/>
+            <span style={{fontSize:11,color:C.dim,fontFamily:C.sans}}>Same as SSH password</span>
+          </label>
+        </div>
+        {!creds.sudoSameAsSSH&&<input type="password" value={creds.sudoPassword} onChange={e=>upd('sudoPassword',e.target.value)} placeholder="sudo password (if different)" style={{fontSize:12,width:'100%'}}/>}
+        {creds.sudoSameAsSSH&&<div style={{fontSize:10,color:C.faint,fontFamily:C.sans,padding:'4px 0'}}>Will auto-send SSH password when sudo prompt is detected</div>}
+      </div>
+      <div style={{display:'flex',gap:8,marginTop:8}}>
+        <Btn onClick={()=>onDeploy({...creds,sudoPassword:effectiveSudo})} variant='primary' disabled={!canDeploy||!creds.host||!creds.username||script.split('\n').length<5} style={{flex:1,padding:'7px 12px'}}>
+          {isRunning?'Deploying…':'⬆  Deploy to Host'}
+        </Btn>
+        {isRunning&&<Btn onClick={onAbort} variant='danger'>Abort</Btn>}
+      </div>
+      {!canDeploy&&!isRunning&&<div style={{fontSize:11,color:terminal.status==='success'?C.green:C.red,fontFamily:C.sans,marginTop:6}}>
+        {terminal.status==='success'?'✓ Deployment complete — you can deploy again':'✗ Deployment failed — check terminal output'}
+      </div>}
+    </div>
+    <div style={{flex:1,overflow:'hidden'}}>
+      <Terminal lines={terminal.lines} status={terminal.status} sudoPrompt={terminal.sudoPrompt} sudoPassword={effectiveSudo} onSendInput={onSendInput}/>
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════════════════════ */
+function App(){
+  /* ── global state ── */
+  const [hostname,setHostname]=useState('');
+  const [distro,setDistro]=useState({type:'ubuntu',piModel:'pi4'});
+  const [tab,setTab]=useState('software');
+  const [stab,setStab]=useState('script');
+  const [copied,setCopied]=useState(false);
+  const [expanded,setExpanded]=useState({});
+
+  /* ── software ── */
+  const [sw,setSw]=useState({
+    docker:   {enabled:false,config:{compose:true,dockerGroup:true,dockerDir:false}},
+    ncdu:     {enabled:false,config:{}},
+    git:      {enabled:false,config:{username:'',email:'',branch:'main'}},
+    neofetch: {enabled:false,config:{
+      customLogo:true, logo:DEFAULT_LOGO,
+      useCustomConfig:true,
+      nfVars:{dockerContainer:'',colour1:'#005FAF',colour2:'#808080',colour3:'#87AFFF',title:'My Server',url:'https://example.com',urlText:'Visit Website'},
+      uploadImage:false, imageData:null, imageName:'',
+      bashrcNeofetch:false,
+    }},
+    portainer:{enabled:false,config:{port:'9000'}},
+    wazuh:    {enabled:false,config:{managerIP:'',managerPort:'1514'}},
+    duf:      {enabled:false,config:{}},
+  });
+
+  /* ── config ── */
+  const [cfg,setCfg]=useState({
+    bashrc:{enabled:false,config:{
+      mode:'builder',
+      customContent:'',
+      aliases:[
+        {id:uid(),name:'ll',cmd:'ls -alF --color=auto'},
+        {id:uid(),name:'la',cmd:'ls -A --color=auto'},
+        {id:uid(),name:'gs',cmd:'git status'},
+        {id:uid(),name:'gp',cmd:'git pull'},
+        {id:uid(),name:'dps',cmd:'docker ps'},
+        {id:uid(),name:'dcu',cmd:'docker compose up -d'},
+        {id:uid(),name:'dcd',cmd:'docker compose down'},
+      ],
+      ps1User:'#4ade80',ps1Host:'#60a5fa',ps1Path:'#fb923c',
+      customDir:'',sshMenu:false,
+    }},
+    sshKeys:  {enabled:false,config:{keys:''}},
+  });
+
+  const [custom,setCustom]=useState([]);
+
+  /* ── templates ── */
+  const [templates,setTemplates]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem('lp_templates')||'null')||SEED_TEMPLATES;}
+    catch{return SEED_TEMPLATES;}
+  });
+  useEffect(()=>{try{localStorage.setItem('lp_templates',JSON.stringify(templates));}catch{}},[templates]);
+  const [editingTpl,setEditingTpl]=useState(null);
+  const [usingTpl,setUsingTpl]=useState(null);
+
+  /* ── terminal / deploy ── */
+  const [terminal,setTerminal]=useState({status:'idle',lines:[]});
+  const wsRef=useRef(null);
+
+  /* ── helpers ── */
+  const togSw=k=>setSw(p=>({...p,[k]:{...p[k],enabled:!p[k].enabled}}));
+  const updSw=(k,f,v)=>setSw(p=>({...p,[k]:{...p[k],config:{...p[k].config,[f]:v}}}));
+  const togCfg=k=>setCfg(p=>({...p,[k]:{...p[k],enabled:!p[k].enabled}}));
+  const updCfg=(k,f,v)=>setCfg(p=>({...p,[k]:{...p[k],config:{...p[k].config,[f]:v}}}));
+  const togExp=k=>setExpanded(p=>({...p,[k]:!p[k]}));
+  const lbl=(text,style={})=><div style={{fontSize:10,color:C.dim,textTransform:'uppercase',letterSpacing:'.07em',fontFamily:C.sans,...style}}>{text}</div>;
+
+  const script=useMemo(()=>generateScript({sw,cfg,custom,hostname,distro}),[sw,cfg,custom,hostname,distro]);
+  const hlScript=useMemo(()=>hlBash(script),[script]);
+  const enabledCount=[...Object.values(sw),...Object.values(cfg)].filter(v=>v.enabled).length+custom.length;
+
+  const copyScript=()=>{navigator.clipboard.writeText(script).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000)})};
+  const dlScript=()=>{const b=new Blob([script],{type:'text/x-sh'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`provision-${hostname||'host'}.sh`;a.click()};
+
+  /* ── deploy via WebSocket ── */
+  function deploy(creds){
+    if(wsRef.current)try{wsRef.current.close();}catch{}
+    setTerminal({status:'connecting',lines:[],sudoPrompt:false});
+    const ws=new WebSocket(`ws://${window.location.host}/ws`);
+    wsRef.current=ws;
+    ws.onopen=()=>ws.send(JSON.stringify({
+      type:'deploy',
+      host:creds.host, port:+creds.port, username:creds.username,
+      password:creds.authType==='password'?creds.password:undefined,
+      privateKey:creds.authType==='key'?creds.privateKey:undefined,
+      sudoPassword:creds.sudoPassword||undefined,
+      script,
+    }));
+    ws.onmessage=e=>{
+      const msg=JSON.parse(e.data);
+      if(['stdout','stderr','log'].includes(msg.type)){
+        const newLines=msg.data.split(/\r?\n/).filter(l=>l.length).map(l=>({text:l,type:msg.type}));
+        setTerminal(p=>({...p,status:'running',lines:[...p.lines,...newLines].slice(-3000)}));
+      }
+      if(msg.type==='sudoPrompt')setTerminal(p=>({...p,sudoPrompt:true}));
+      if(msg.type==='done')setTerminal(p=>({...p,status:msg.data.code===0?'success':'error',sudoPrompt:false}));
+      if(msg.type==='error')setTerminal(p=>({...p,status:'error',sudoPrompt:false,lines:[...p.lines,{text:msg.data,type:'stderr'}]}));
+    };
+    ws.onclose=()=>setTerminal(p=>p.status==='running'?{...p,status:'disconnected'}:p);
+  }
+  function abort(){if(wsRef.current?.readyState===1)wsRef.current.send(JSON.stringify({type:'abort'}));}
+  function sendInput(data){if(wsRef.current?.readyState===1)wsRef.current.send(JSON.stringify({type:'input',data}));}
+
+  /* ── template actions ── */
+  function applyTemplate(content){
+    setCfg(p=>({...p,bashrc:{...p.bashrc,enabled:true,config:{...p.bashrc.config,mode:'custom',customContent:content}}}));
+    setUsingTpl(null);
+    setTab('config');
+    setExpanded(p=>({...p,bashrc:true}));
+  }
+
+  const TABS=[['software','Software'],['config','Config Files'],['custom','Custom']];
+  const STABS=[['script','Script'],['deploy','Deploy via SSH']];
+
+  return <>
+    {editingTpl&&<TemplateEditModal template={editingTpl.id?editingTpl:null} onSave={tpl=>{setTemplates(p=>editingTpl.id?p.map(t=>t.id===tpl.id?tpl:t):[...p,tpl]);setEditingTpl(null)}} onClose={()=>setEditingTpl(null)}/>}
+    {usingTpl&&<TemplateUseModal template={usingTpl} onApply={applyTemplate} onClose={()=>setUsingTpl(null)}/>}
+
+    <div style={{display:'flex',flexDirection:'column',height:'100vh',background:C.bg,overflow:'hidden'}}>
+
+      {/* ── HEADER ── */}
+      <div style={{background:C.surf,borderBottom:`1px solid ${C.bdr}`,padding:'9px 18px',display:'flex',alignItems:'center',gap:12,flexShrink:0}}>
+        <div style={{width:30,height:30,borderRadius:7,background:C.teal,display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,color:'#fff',flexShrink:0}}>⬡</div>
+        <div>
+          <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:C.sans,letterSpacing:'-.01em'}}>LinuxProvisioner</div>
+          <div style={{fontSize:10,color:C.dim,fontFamily:C.sans}}>{enabledCount} item{enabledCount!==1?'s':''} selected</div>
+        </div>
+        <div style={{flex:1}}/>
+        {/* Distro selector */}
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <span style={{fontSize:11,color:C.dim,fontFamily:C.sans,flexShrink:0}}>OS</span>
+          <select value={distro.type} onChange={e=>setDistro(p=>({...p,type:e.target.value}))} style={{width:140,fontSize:12}}>
+            <option value="ubuntu">Ubuntu (amd64)</option>
+            <option value="raspbian">Raspberry Pi OS</option>
+          </select>
+          {distro.type==='raspbian'&&<select value={distro.piModel} onChange={e=>setDistro(p=>({...p,piModel:e.target.value}))} style={{width:130,fontSize:12}}>
+            {PI_MODELS.map(m=><option key={m.id} value={m.id}>{m.label}</option>)}
+          </select>}
+        </div>
+        <div style={{width:1,height:24,background:C.bdr,flexShrink:0}}/>
+        <label style={{fontSize:11,color:C.dim,fontFamily:C.sans,flexShrink:0}}>Hostname</label>
+        <input value={hostname} onChange={e=>setHostname(e.target.value)} placeholder="my-server" style={{width:150,fontSize:12}}/>
+      </div>
+
+      {/* ── BODY ── */}
+      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+
+        {/* LEFT PANEL */}
+        <div style={{width:410,flexShrink:0,display:'flex',flexDirection:'column',background:C.surf,borderRight:`1px solid ${C.bdr}`,overflow:'hidden'}}>
+          <div style={{display:'flex',borderBottom:`1px solid ${C.bdr}`,flexShrink:0}}>
+            {TABS.map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{flex:1,padding:'10px 0',fontSize:12,fontWeight:tab===k?600:400,color:tab===k?C.text:C.dim,background:'transparent',border:'none',borderBottom:tab===k?`2px solid ${C.teal}`:'2px solid transparent',cursor:'pointer',fontFamily:C.sans,transition:'color .15s'}}>{l}</button>)}
+          </div>
+
+          <div style={{flex:1,overflowY:'auto'}}>
+
+            {/* ── SOFTWARE TAB ── */}
+            {tab==='software'&&<>
+              <SwItem label="Docker & Docker Compose" desc="Container runtime with compose support" icon="⬡" on={sw.docker.enabled} onToggle={()=>togSw('docker')} expanded={expanded.docker} onExpand={()=>togExp('docker')}>
+                <div style={{paddingTop:8}}>
+                  <Check label="Install Docker Compose plugin" checked={sw.docker.config.compose} onChange={()=>updSw('docker','compose',!sw.docker.config.compose)}/>
+                  <Check label="Add current user to docker group" checked={sw.docker.config.dockerGroup} onChange={()=>updSw('docker','dockerGroup',!sw.docker.config.dockerGroup)}/>
+                  <Check label="Create ~/docker working directory" checked={sw.docker.config.dockerDir} onChange={()=>updSw('docker','dockerDir',!sw.docker.config.dockerDir)}/>
+                </div>
+              </SwItem>
+              <SwItem label="ncdu" desc="NCurses disk usage analyser" icon="◈" on={sw.ncdu.enabled} onToggle={()=>togSw('ncdu')} expanded={false}/>
+              <SwItem label="Git" desc="Distributed version control" icon="⑂" on={sw.git.enabled} onToggle={()=>togSw('git')} expanded={expanded.git} onExpand={()=>togExp('git')}>
+                <div style={{paddingTop:8}}>
+                  <Inp label="Global username" value={sw.git.config.username} onChange={v=>updSw('git','username',v)} placeholder="John Doe"/>
+                  <Inp label="Global email" value={sw.git.config.email} onChange={v=>updSw('git','email',v)} placeholder="john@example.com"/>
+                  <Inp label="Default branch" value={sw.git.config.branch} onChange={v=>updSw('git','branch',v)} placeholder="main"/>
+                </div>
+              </SwItem>
+              <SwItem label="Neofetch" desc="System info, custom config, image & logo" icon="◭" on={sw.neofetch.enabled} onToggle={()=>togSw('neofetch')} expanded={expanded.neofetch} onExpand={()=>togExp('neofetch')}>
+                <NeofetchOptions cfg={sw.neofetch.config} updSw={updSw} lbl={lbl}/>
+              </SwItem>
+              <SwItem label="Portainer CE" desc="Docker management web UI" icon="⊛" on={sw.portainer.enabled} onToggle={()=>togSw('portainer')} expanded={expanded.portainer} onExpand={()=>togExp('portainer')}>
+                <div style={{paddingTop:8}}>
+                  <Inp label="Host port" value={sw.portainer.config.port} onChange={v=>updSw('portainer','port',v)} placeholder="9000"/>
+                  <div style={{fontSize:11,color:C.dim,fontFamily:C.sans}}>Requires Docker to be installed first</div>
+                </div>
+              </SwItem>
+              <SwItem label="Wazuh Agent" desc="Security monitoring + SIEM" icon="◉" on={sw.wazuh.enabled} onToggle={()=>togSw('wazuh')} expanded={expanded.wazuh} onExpand={()=>togExp('wazuh')}>
+                <div style={{paddingTop:8}}>
+                  <Inp label="Manager IP" value={sw.wazuh.config.managerIP} onChange={v=>updSw('wazuh','managerIP',v)} placeholder="10.0.0.1"/>
+                  <Inp label="Manager Port" value={sw.wazuh.config.managerPort} onChange={v=>updSw('wazuh','managerPort',v)} placeholder="1514"/>
+                </div>
+              </SwItem>
+              <SwItem label="duf" desc="Pretty disk usage (auto arch detection)" icon="◱" on={sw.duf.enabled} onToggle={()=>togSw('duf')} expanded={false}/>
+            </>}
+
+            {/* ── CONFIG TAB ── */}
+            {tab==='config'&&<>
+              <SwItem label=".bashrc Config" desc="Aliases · PS1 · SSH Menu" icon="≡" on={cfg.bashrc.enabled} onToggle={()=>togCfg('bashrc')} expanded={expanded.bashrc} onExpand={()=>togExp('bashrc')}>
+                <div style={{paddingTop:8}}>
+                  <div style={{display:'flex',gap:6,marginBottom:12}}>
+                    {[['builder','Builder'],['custom','Custom / Template']].map(([v,l])=>(
+                      <button key={v} onClick={()=>updCfg('bashrc','mode',v)} style={{flex:1,padding:'5px 0',fontSize:11,borderRadius:5,border:`1px solid ${cfg.bashrc.config.mode===v?C.teal:C.bdr}`,background:cfg.bashrc.config.mode===v?C.tealDim:'transparent',color:cfg.bashrc.config.mode===v?C.teal:C.dim,cursor:'pointer',fontFamily:C.sans,fontWeight:cfg.bashrc.config.mode===v?600:400}}>{l}</button>
+                    ))}
+                  </div>
+                  {cfg.bashrc.config.mode==='custom'?(
+                    <div>
+                      <div style={{background:C.bg,borderRadius:6,border:`1px solid ${C.bdr}`,marginBottom:10,overflow:'hidden'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'7px 10px',borderBottom:`1px solid ${C.bdr}`}}>
+                          <span style={{fontSize:11,fontWeight:500,color:C.text,fontFamily:C.sans}}>Templates ({templates.length})</span>
+                          <Btn onClick={()=>setEditingTpl({})} variant='ghost' style={{fontSize:11,padding:'2px 8px'}}>+ New</Btn>
+                        </div>
+                        {templates.length===0&&<div style={{padding:'8px 10px',fontSize:11,color:C.faint,fontFamily:C.sans}}>No templates yet.</div>}
+                        {templates.map(t=>{
+                          const tvars=extractVars(t.content);
+                          return <div key={t.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderBottom:`1px solid ${C.bdr}`}}>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{fontSize:12,color:C.text,fontFamily:C.sans,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
+                              <div style={{fontSize:10,color:C.dim,fontFamily:C.mono,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{tvars.length} var{tvars.length!==1?'s':''}{tvars.length>0?': '+tvars.slice(0,3).map(v=>`{{${v}}}`).join(' '):''}</div>
+                            </div>
+                            <Btn onClick={()=>setEditingTpl(t)} variant='ghost' style={{padding:'2px 7px',fontSize:11}}>Edit</Btn>
+                            <Btn onClick={()=>setUsingTpl(t)} variant='primary' style={{padding:'2px 7px',fontSize:11}}>Use</Btn>
+                            <Btn onClick={()=>{if(confirm(`Delete "${t.name}"?`))setTemplates(p=>p.filter(x=>x.id!==t.id))}} variant='ghost' style={{padding:'2px 5px',fontSize:13,color:C.faint}}>×</Btn>
+                          </div>;
+                        })}
+                      </div>
+                      {lbl('.bashrc content to append',{marginBottom:4})}
+                      <textarea value={cfg.bashrc.config.customContent} onChange={e=>updCfg('bashrc','customContent',e.target.value)} rows={9} placeholder={"# Paste or Use a template above\nalias ll='ls -alF'\nexport PS1='\\u@\\h:\\w\\$ '"} style={{fontFamily:C.mono,fontSize:11}}/>
+                      <div style={{fontSize:10,color:C.dim,fontFamily:C.sans,marginTop:4}}>Click <span style={{color:C.teal}}>Use</span> on a template to populate this field automatically.</div>
+                    </div>
+                  ):(
+                    <>
+                      <div style={{marginBottom:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                          {lbl('Aliases',{marginBottom:0})}
+                          <Btn onClick={()=>updCfg('bashrc','aliases',[...cfg.bashrc.config.aliases,{id:uid(),name:'',cmd:''}])} variant='ghost' style={{fontSize:11,padding:'2px 8px'}}>+ Add</Btn>
+                        </div>
+                        {cfg.bashrc.config.aliases.map((a,i)=>(
+                          <div key={a.id} style={{display:'flex',gap:4,marginBottom:4,alignItems:'center'}}>
+                            <input value={a.name} onChange={e=>{const u=[...cfg.bashrc.config.aliases];u[i]={...a,name:e.target.value};updCfg('bashrc','aliases',u)}} placeholder="name" style={{width:72,fontSize:11}}/>
+                            <span style={{color:C.faint,fontSize:11,flexShrink:0}}>=</span>
+                            <input value={a.cmd} onChange={e=>{const u=[...cfg.bashrc.config.aliases];u[i]={...a,cmd:e.target.value};updCfg('bashrc','aliases',u)}} placeholder="command" style={{flex:1,fontSize:11}}/>
+                            <button onClick={()=>updCfg('bashrc','aliases',cfg.bashrc.config.aliases.filter((_,j)=>j!==i))} style={{background:'transparent',border:'none',cursor:'pointer',color:C.dim,fontSize:15,padding:'0 3px',lineHeight:1}}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{marginBottom:12}}>
+                        {lbl('PS1 Prompt Colours',{marginBottom:6})}
+                        <PS1Preview cfg={cfg.bashrc.config} hostname={hostname}/>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                          {[['ps1User','Username'],['ps1Host','Host'],['ps1Path','Path']].map(([k,l])=>(
+                            <div key={k}>
+                              <div style={{fontSize:10,color:C.dim,marginBottom:3,fontFamily:C.sans}}>{l}</div>
+                              <div style={{display:'flex',gap:4,alignItems:'center'}}>
+                                <input type="color" value={cfg.bashrc.config[k]} onChange={e=>updCfg('bashrc',k,e.target.value)}/>
+                                <input value={cfg.bashrc.config[k]} onChange={e=>updCfg('bashrc',k,e.target.value)} style={{flex:1,fontSize:10}}/>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <Inp label="Login directory (cd on SSH in)" value={cfg.bashrc.config.customDir} onChange={v=>updCfg('bashrc','customDir',v)} placeholder="~/docker"/>
+                      <Check label="Include SSH Menu (neofetch + update prompt on SSH login)" checked={cfg.bashrc.config.sshMenu} onChange={()=>updCfg('bashrc','sshMenu',!cfg.bashrc.config.sshMenu)}/>
+                      {cfg.bashrc.config.sshMenu&&<div style={{fontSize:10,color:C.faint,fontFamily:C.sans,marginLeft:23,marginTop:2,lineHeight:1.5}}>
+                        On SSH login: cd to above directory, run neofetch, show system update menu. Colours driven by PS1 palette.
+                      </div>}
+                    </>
+                  )}
+                </div>
+              </SwItem>
+
+              <SwItem label="SSH Authorized Keys" desc="Public keys for passwordless login" icon="⚿" on={cfg.sshKeys.enabled} onToggle={()=>togCfg('sshKeys')} expanded={expanded.sshKeys} onExpand={()=>togExp('sshKeys')}>
+                <div style={{paddingTop:8}}>
+                  {lbl('Public keys (one per line)',{marginBottom:4})}
+                  <textarea value={cfg.sshKeys.config.keys} onChange={e=>updCfg('sshKeys','keys',e.target.value)} rows={4} placeholder="ssh-rsa AAAA..." style={{fontSize:11}}/>
+                </div>
+              </SwItem>
+            </>}
+
+            {/* ── CUSTOM TAB ── */}
+            {tab==='custom'&&<div style={{padding:'14px 16px'}}>
+              <div style={{fontSize:12,color:C.dim,marginBottom:14,fontFamily:C.sans,lineHeight:1.5}}>Custom bash blocks run at the end of the script.</div>
+              {custom.map((c,i)=>(
+                <div key={c.id} style={{background:C.card,borderRadius:8,padding:12,marginBottom:10,border:`1px solid ${C.bdr}`}}>
+                  <div style={{display:'flex',gap:6,marginBottom:8,alignItems:'center'}}>
+                    <input value={c.label} onChange={e=>setCustom(p=>p.map((x,j)=>j===i?{...x,label:e.target.value}:x))} placeholder="Label (optional)" style={{flex:1,fontFamily:C.sans,fontSize:12}}/>
+                    <button onClick={()=>setCustom(p=>p.filter((_,j)=>j!==i))} style={{background:'transparent',border:'none',cursor:'pointer',color:C.dim,fontSize:16,padding:'0 4px',lineHeight:1}}>×</button>
+                  </div>
+                  <textarea value={c.command} onChange={e=>setCustom(p=>p.map((x,j)=>j===i?{...x,command:e.target.value}:x))} rows={3} placeholder="# bash commands..." style={{fontSize:11}}/>
+                </div>
+              ))}
+              <button onClick={()=>setCustom(p=>[...p,{id:uid(),label:'',command:''}])} style={{width:'100%',padding:'10px',fontSize:12,border:`1px dashed ${C.bdr}`,borderRadius:8,background:'transparent',cursor:'pointer',color:C.dim,fontFamily:C.sans,transition:'border-color .15s'}}>+ Add command block</button>
+            </div>}
+          </div>
+        </div>
+
+        {/* RIGHT PANEL */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
+          <div style={{background:C.surf,borderBottom:`1px solid ${C.bdr}`,padding:'7px 14px',display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+            {STABS.map(([k,l])=><button key={k} onClick={()=>setStab(k)} style={{padding:'4px 12px',fontSize:12,borderRadius:6,border:`1px solid ${stab===k?C.teal:C.bdr}`,background:stab===k?C.tealDim:'transparent',color:stab===k?C.teal:C.dim,cursor:'pointer',fontWeight:stab===k?600:400,fontFamily:C.sans,transition:'all .15s'}}>{l}</button>)}
+            <div style={{flex:1}}/>
+            {stab==='script'&&<>
+              <span style={{fontSize:10,color:C.faint,fontFamily:C.mono}}>{script.split('\n').length} lines</span>
+              <Btn onClick={copyScript} style={{fontSize:11,color:copied?C.teal:C.text,borderColor:copied?C.teal:C.bdr,background:copied?C.tealDim:'transparent'}}>{copied?'✓ Copied':'Copy'}</Btn>
+              <Btn onClick={dlScript} style={{fontSize:11}}>↓ Download .sh</Btn>
+            </>}
+          </div>
+          {stab==='script'
+            ?<pre style={{flex:1,overflowY:'auto',margin:0,padding:'12px 16px',background:C.bg,fontFamily:C.mono,fontSize:11,lineHeight:1.75,color:C.text,whiteSpace:'pre-wrap',wordBreak:'break-word'}} dangerouslySetInnerHTML={{__html:hlScript}}/>
+            :<div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}}><DeployPanel script={script} hostname={hostname} terminal={terminal} onDeploy={deploy} onAbort={abort} onSendInput={sendInput}/></div>
+          }
+        </div>
+      </div>
+    </div>
+  </>;
+}
+
+window.onerror=function(msg,src,line,col,err){
+  document.getElementById('root').innerHTML='<pre style="color:#f85149;background:#0d1117;padding:20px;font-size:12px;font-family:monospace;white-space:pre-wrap">'+
+  'Runtime Error\n'+msg+'\n\n'+(err&&err.stack?err.stack:'line '+line+' col '+col)+'</pre>';
+  return true;
+};
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(e){return{err:e};}
+  render(){
+    if(this.state.err)return <pre style={{color:'#f85149',background:'#0d1117',padding:20,fontSize:12,fontFamily:'monospace',whiteSpace:'pre-wrap'}}>
+      React Error:\n{String(this.state.err)}\n\n{this.state.err.stack}
+    </pre>;
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
+</script>
+<style>@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}</style>
+</body>
+</html>

@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  swaps:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: swaps:2.0.0
+    container_name: swaps
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+# Optional: put behind Traefik with SSL
+# Uncomment labels and networks below, and add to traefik network
+#    labels:
+#      - "traefik.enable=true"
+#      - "traefik.http.routers.lp.rule=Host(`provisioner.yourdomain.com`)"
+#      - "traefik.http.routers.lp.entrypoints=websecure"
+#      - "traefik.http.routers.lp.tls.certresolver=letsencrypt"
+#    networks:
+#      - traefik-net
+
+#networks:
+#  traefik-net:
+#    external: true
