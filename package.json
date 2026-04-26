@@ -1,16 +1,22 @@
 {
-  "name": "linuxprovisioner",
+  "name": "swaps",
   "version": "2.0.0",
-  "description": "Linux host provisioning script generator with SSH deployment",
+  "description": "SWAPS — Linux host provisioner with SSH deployment",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "build": "node build.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "ssh2": "^1.15.0",
     "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0"
   },
   "engines": {
     "node": ">=18"

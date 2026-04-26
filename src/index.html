@@ -1,0 +1,5346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SWAPS</title>
+<link rel="icon" type="image/png" href="/logo.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#1a2133;--surf:#242e42;--card:#2c3650;
+  --bdr:#3a4d6a;--bdrh:#536485;
+  --teal:#1D9E75;--tealDim:rgba(29,158,117,.36);--tealBdr:rgba(29,158,117,.4);
+  --blue:#388bfd;--blueDim:rgba(56,139,253,.1);
+  --text:#e6edf3;--dim:#b1b8c0;--faint:#e6edf3;
+  --green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#a371f7;
+  --mono:'JetBrains Mono','Fira Mono',monospace;
+  --sans:'Roboto',system-ui,sans-serif;
+  --rad:8px;
+}
+.light{
+  --bg:#f6f8fa;--surf:#ffffff;--card:#f6f8fa;
+  --bdr:#d0d7de;--bdrh:#afb8c1;
+  --text:#24292f;--dim:#57606a;--faint:#8c959f;
+}
+html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
+input,textarea,select{
+  background:var(--surf);border:1px solid var(--bdr);border-radius:6px;
+  color:var(--text);font-family:var(--mono);font-size:12px;
+  padding:5px 9px;outline:none;width:100%;transition:border-color .15s;
+}
+input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+input[type=color]{padding:2px;height:26px;width:30px;cursor:pointer;border-radius:4px}
+input[type=radio],input[type=checkbox]{width:auto;accent-color:var(--teal)}
+textarea{resize:vertical;line-height:1.55}
+select{cursor:pointer;appearance:none;padding-right:24px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238b949e' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center}
+button{cursor:pointer;font-family:var(--sans)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:var(--bdrh)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(3px)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:900px){
+  .hide-mobile{display:none!important}
+  .full-mobile{width:100%!important}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script>
+const {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback
+} = React;
+const uid = () => Math.random().toString(36).slice(2, 8);
+const PI_MODELS = [{
+  id: 'pi5',
+  label: 'Pi 5',
+  arch: 'arm64'
+}, {
+  id: 'pi4',
+  label: 'Pi 4',
+  arch: 'arm64'
+}, {
+  id: 'pi3bp',
+  label: 'Pi 3 B+',
+  arch: 'arm64'
+}, {
+  id: 'pi3',
+  label: 'Pi 3',
+  arch: 'armhf'
+}, {
+  id: 'pi2',
+  label: 'Pi 2',
+  arch: 'armhf'
+}, {
+  id: 'pi1',
+  label: 'Pi 1',
+  arch: 'armv6l'
+}, {
+  id: 'zero2w',
+  label: 'Pi Zero 2 W',
+  arch: 'arm64'
+}, {
+  id: 'zerow',
+  label: 'Pi Zero W',
+  arch: 'armv6l'
+}, {
+  id: 'zero',
+  label: 'Pi Zero',
+  arch: 'armv6l'
+}];
+const PACKAGE_GROUPS = [{
+  id: 'homelab',
+  label: 'Homelab Essentials',
+  icon: '⊕',
+  pkgs: ['htop', 'tmux', 'curl', 'vim', 'ncdu', 'git', 'duf', 'rsync', 'unzip']
+}, {
+  id: 'docker-stack',
+  label: 'Docker Stack',
+  icon: '⬡',
+  pkgs: ['docker', 'portainer']
+}, {
+  id: 'dev',
+  label: 'Dev Tools',
+  icon: '⑂',
+  pkgs: ['git', 'curl', 'vim', 'tmux', 'htop', 'rsync']
+}, {
+  id: 'security',
+  label: 'Security Bundle',
+  icon: '◉',
+  pkgs: ['fail2ban', 'ufw', 'nmap']
+}, {
+  id: 'monitoring',
+  label: 'Monitoring',
+  icon: '◈',
+  pkgs: ['netdata', 'htop', 'duf', 'ncdu']
+}];
+const UFW_PRESETS = [{
+  id: 'ssh-only',
+  label: 'SSH Only',
+  rules: ['allow 22/tcp']
+}, {
+  id: 'webserver',
+  label: 'Web Server',
+  rules: ['allow 22/tcp', 'allow 80/tcp', 'allow 443/tcp']
+}, {
+  id: 'homelab',
+  label: 'Homelab',
+  rules: ['allow 22/tcp', 'allow 80/tcp', 'allow 443/tcp', 'allow 8080/tcp', 'allow 9000/tcp', 'allow 8096/tcp']
+}, {
+  id: 'custom',
+  label: 'Custom',
+  rules: []
+}];
+const NEOFETCH_TEMPLATE = "# See this wiki page for more info:\n# https://github.com/dylanaraps/neofetch/wiki/Customizing-Info\n\nget_docker() {\n    local status=$(docker inspect -f '{{.State.Status}}' @1@DOCKER-CONTAINER@1@ 2>/dev/null)\n    case \"$status\" in\n        running) echo \"\\e[38;5;117mActive\\e[0m\" ;;\n        exited)  echo \"\\e[31mInactive\\e[0m\" ;;\n        *)       echo \"\\e[33mUnknown\\e[0m\" ;;\n    esac\n}\n\nget_disk() {\n    local used=$(df -h / | awk 'NR==2 {print $3}')\n    local total=$(df -h / | awk 'NR==2 {print $2}')\n    local percent=$(df -h / | awk 'NR==2 {print $5}')\n    echo \"${used} / ${total} (${percent})\"\n}\n\nget_updates() {\n    local cache=\"/tmp/neofetch_updates_cache\"\n    if [ ! -f \"$cache\" ] || [ \"$(find \"$cache\" -mmin +1440 2>/dev/null)\" ]; then\n        apt list --upgradable 2>/dev/null | grep -c upgradable > \"$cache\"\n    fi\n    local updates=$(cat \"$cache\")\n    if [ \"$updates\" -eq 0 ]; then\n        echo \"Up to date\"\n    else\n        echo \"${updates} updates available\"\n    fi\n}\n\nget_cpu_usage() {\n    local cpu=$(awk '/^cpu / {usage=($2+$4)*100/($2+$3+$4+$5); printf \"%.1f\", usage}' /proc/stat)\n    echo \"${cpu}%\"\n}\n\nprint_info() {\n    prin \"\"\n\n    # Colors\n    local @2@COLOUR1@2@=\"\\e[38;5;25m\"   \n    local @3@COLOUR2@3@=\"\\e[38;5;248m\"\n    local @4@COLOUR3@4@=\"\\033[38;5;117m\"\n\n    local reset=\"\\e[0m\"\n\n    # Custom title\n    prin \"${@2@COLOUR1@2@}${USER}${reset}@${@4@COLOUR3@4@}$(hostname)${reset}\"\n    prin \"\"\n    prin \"${@3@COLOUR2@3@}@5@TITLE@5@${reset}\"\n    prin \"\"\n    prin \"${@3@COLOUR2@3@}------------------------------${reset}\"\n    prin \"\"\n\n    # Body\n    prin \"${@2@COLOUR1@2@}Date${reset}\" \"$(date)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}OS${reset}\" distro\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}CPU${reset}\" \"$(get_cpu_usage)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Memory${reset}\" memory\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Disk${reset}\" \"$(get_disk)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Local IP${reset}\" local_ip\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Updates${reset}\" \"$(get_updates)\"\n    prin \"$sep\"\n\n    info \"${@2@COLOUR1@2@}Uptime${reset}\" uptime\n    prin \"$sep\"\n\n    prin \"${@2@COLOUR1@2@}Docker Container${reset}\" \"$(get_docker)\"\n    prin \"\"\n\n    local link_url=$'\\e]8;;@6@URL@6@\\a@7@URLTEXT@7@\\e]8;;\\a'\n\n    prin \"${@2@COLOUR1@2@}Links${reset}\" \"${@4@COLOUR3@4@}${link_url}${reset}\"\n    prin \"\"\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    # Docker container checks (aligned to info column)\n\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Docker: Containers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n\n#{\n#    local _oldsep=\"$separator\"\n#    separator=\"\"#\n#\n#    # Block-wide indent\n#    local BLOCK_INDENT=4\n#    local PAD\n#    printf -v PAD \"%*s\" \"$BLOCK_INDENT\" \"\"\n#\n#    prin \"\" \"${PAD}\u250c\u2500\u2500\u2500\u2500\u2500\u2500 ${orange}Docker${reset}: Containers \u2500\u2500\u2500\u2500\u2500\u2500\u2510\"\n#\n#    # Inner indent for circle + label\n#    local INDENT=8\n#    local LEFT\n#    printf -v LEFT \"%*s\" \"$INDENT\" \"\"\n#\n#    local containers=(\n#        \"SABnzbd:sabnzbd\"\n#        \"Transmission:transmission\"\n#        \"Radarr:radarr\"\n#        \"Sonarr:sonarr\"\n#        \"Overseerr:overseerr\"\n#    )\n#\n #   _circle() {\n#        local s\n#        s=$(/usr/bin/docker inspect -f '{{.State.Status}}' \"$1\" 2>/dev/null || echo \"not found\")\n#        if [ \"$s\" = \"running\" ]; then\n#            printf \"\\033[32m\u25cf\\033[0m\"\n#        else\n#            printf \"\\033[31m\u25cf\\033[0m\"\n#        fi\n#    }\n#\n#    local entry label cname circle line\n#    for entry in \"${containers[@]}\"; do\n#        label=\"${entry%%:*}\"\n#        cname=\"${entry#*:}\"\n#        circle=\"$(_circle \"$cname\")\"\n#        printf -v line \"%s%s  %b%-14s%b\" \"$LEFT\" \"$circle\" \"$orange\" \"$label\" \"$reset\"\n#        prin \"\" \"$line\"\n#    done\n#\n#    prin \"\" \"${PAD}\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\"\n#    separator=\"$_oldsep\"\n#}\n#\n\n    # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n}\n\n\n# Title\n\n\n# Hide/Show Fully qualified domain name.\n#\n# Default:  'off'\n# Values:   'on', 'off'\n# Flag:     --title_fqdn\ntitle_fqdn=\"off\"\n\n# Kernel\n\n\n# Shorten the output of the kernel function.\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --kernel_shorthand\n# Supports: Everything except *BSDs (except PacBSD and PC-BSD)\n#\n# Example:\n# on:  '4.8.9-1-ARCH'\n# off: 'Linux 4.8.9-1-ARCH'\nkernel_shorthand=\"on\"\n\n\n# Distro\n\n\n# Shorten the output of the distro function\n#\n# Default:  'off'\n# Values:   'on', 'tiny', 'off'\n# Flag:     --distro_shorthand\n# Supports: Everything except Windows and Haiku\ndistro_shorthand=\"off\"\n\n# Show/Hide OS Architecture.\n# Show 'x86_64', 'x86' and etc in 'Distro:' output.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --os_arch\n#\n# Example:\n# on:  'Arch Linux x86_64'\n# off: 'Arch Linux'\nos_arch=\"on\"\n\n\n# Uptime\n\n\n# Shorten the output of the uptime function\n#\n# Default: 'on'\n# Values:  'on', 'tiny', 'off'\n# Flag:    --uptime_shorthand\n#\n# Example:\n# on:   '2 days, 10 hours, 3 mins'\n# tiny: '2d 10h 3m'\n# off:  '2 days, 10 hours, 3 minutes'\nuptime_shorthand=\"on\"\n\n\n# Memory\n\n\n# Show memory pecentage in output.\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --memory_percent\n#\n# Example:\n# on:   '1801MiB / 7881MiB (22%)'\n# off:  '1801MiB / 7881MiB'\nmemory_percent=\"off\"\n\n# Change memory output unit.\n#\n# Default: 'mib'\n# Values:  'kib', 'mib', 'gib'\n# Flag:    --memory_unit\n#\n# Example:\n# kib  '1020928KiB / 7117824KiB'\n# mib  '1042MiB / 6951MiB'\n# gib: ' 0.98GiB / 6.79GiB'\nmemory_unit=\"mib\"\n\n\n# Packages\n\n\n# Show/Hide Package Manager names.\n#\n# Default: 'tiny'\n# Values:  'on', 'tiny' 'off'\n# Flag:    --package_managers\n#\n# Example:\n# on:   '998 (pacman), 8 (flatpak), 4 (snap)'\n# tiny: '908 (pacman, flatpak, snap)'\n# off:  '908'\npackage_managers=\"on\"\n\n\n# Shell\n\n\n# Show the path to $SHELL\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --shell_path\n#\n# Example:\n# on:  '/bin/bash'\n# off: 'bash'\nshell_path=\"off\"\n\n# Show $SHELL version\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --shell_version\n#\n# Example:\n# on:  'bash 4.4.5'\n# off: 'bash'\nshell_version=\"on\"\n\n\n# CPU\n\n\n# CPU speed type\n#\n# Default: 'bios_limit'\n# Values: 'scaling_cur_freq', 'scaling_min_freq', 'scaling_max_freq', 'bios_limit'.\n# Flag:    --speed_type\n# Supports: Linux with 'cpufreq'\n# NOTE: Any file in '/sys/devices/system/cpu/cpu0/cpufreq' can be used as a value.\nspeed_type=\"bios_limit\"\n\n# CPU speed shorthand\n#\n# Default: 'off'\n# Values: 'on', 'off'.\n# Flag:    --speed_shorthand\n# NOTE: This flag is not supported in systems with CPU speed less than 1 GHz\n#\n# Example:\n# on:    'i7-6500U (4) @ 3.1GHz'\n# off:   'i7-6500U (4) @ 3.100GHz'\nspeed_shorthand=\"off\"\n\n# Enable/Disable CPU brand in output.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --cpu_brand\n#\n# Example:\n# on:   'Intel i7-6500U'\n# off:  'i7-6500U (4)'\ncpu_brand=\"on\"\n\n# CPU Speed\n# Hide/Show CPU speed.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --cpu_speed\n#\n# Example:\n# on:  'Intel i7-6500U (4) @ 3.1GHz'\n# off: 'Intel i7-6500U (4)'\ncpu_speed=\"on\"\n\n# CPU Cores\n# Display CPU cores in output\n#\n# Default: 'logical'\n# Values:  'logical', 'physical', 'off'\n# Flag:    --cpu_cores\n# Support: 'physical' doesn't work on BSD.\n#\n# Example:\n# logical:  'Intel i7-6500U (4) @ 3.1GHz' (All virtual cores)\n# physical: 'Intel i7-6500U (2) @ 3.1GHz' (All physical cores)\n# off:      'Intel i7-6500U @ 3.1GHz'\ncpu_cores=\"logical\"\n\n# CPU Temperature\n# Hide/Show CPU temperature.\n# Note the temperature is added to the regular CPU function.\n#\n# Default: 'off'\n# Values:  'C', 'F', 'off'\n# Flag:    --cpu_temp\n# Supports: Linux, BSD\n# NOTE: For FreeBSD and NetBSD-based systems, you'll need to enable\n#       coretemp kernel module. This only supports newer Intel processors.\n#\n# Example:\n# C:   'Intel i7-6500U (4) @ 3.1GHz [27.2\u00b0C]'\n# F:   'Intel i7-6500U (4) @ 3.1GHz [82.0\u00b0F]'\n# off: 'Intel i7-6500U (4) @ 3.1GHz'\ncpu_temp=\"off\"\n\n\n# GPU\n\n\n# Enable/Disable GPU Brand\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gpu_brand\n#\n# Example:\n# on:  'AMD HD 7950'\n# off: 'HD 7950'\ngpu_brand=\"on\"\n\n# Which GPU to display\n#\n# Default: 'all'\n# Values:  'all', 'dedicated', 'integrated'\n# Flag:    --gpu_type\n# Supports: Linux\n#\n# Example:\n# all:\n#   GPU1: AMD HD 7950\n#   GPU2: Intel Integrated Graphics\n#\n# dedicated:\n#   GPU1: AMD HD 7950\n#\n# integrated:\n#   GPU1: Intel Integrated Graphics\ngpu_type=\"all\"\n\n\n# Resolution\n\n\n# Display refresh rate next to each monitor\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --refresh_rate\n# Supports: Doesn't work on Windows.\n#\n# Example:\n# on:  '1920x1080 @ 60Hz'\n# off: '1920x1080'\nrefresh_rate=\"off\"\n\n\n# Gtk Theme / Icons / Font\n\n\n# Shorten output of GTK Theme / Icons / Font\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --gtk_shorthand\n#\n# Example:\n# on:  'Numix, Adwaita'\n# off: 'Numix [GTK2], Adwaita [GTK3]'\ngtk_shorthand=\"off\"\n\n\n# Enable/Disable gtk2 Theme / Icons / Font\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gtk2\n#\n# Example:\n# on:  'Numix [GTK2], Adwaita [GTK3]'\n# off: 'Adwaita [GTK3]'\ngtk2=\"on\"\n\n# Enable/Disable gtk3 Theme / Icons / Font\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --gtk3\n#\n# Example:\n# on:  'Numix [GTK2], Adwaita [GTK3]'\n# off: 'Numix [GTK2]'\ngtk3=\"on\"\n\n\n# IP Address\n\n\n# Website to ping for the public IP\n#\n# Default: 'http://ident.me'\n# Values:  'url'\n# Flag:    --ip_host\npublic_ip_host=\"http://ident.me\"\n\n# Public IP timeout.\n#\n# Default: '2'\n# Values:  'int'\n# Flag:    --ip_timeout\npublic_ip_timeout=2\n\n\n# Desktop Environment\n\n\n# Show Desktop Environment version\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --de_version\nde_version=\"on\"\n\n\n# Disk\n\n\n# Which disks to display.\n# The values can be any /dev/sdXX, mount point or directory.\n# NOTE: By default we only show the disk info for '/'.\n#\n# Default: '/'\n# Values:  '/', '/dev/sdXX', '/path/to/drive'.\n# Flag:    --disk_show\n#\n# Example:\n# disk_show=('/' '/dev/sdb1'):\n#      'Disk (/): 74G / 118G (66%)'\n#      'Disk (/mnt/Videos): 823G / 893G (93%)'\n#\n# disk_show=('/'):\n#      'Disk (/): 74G / 118G (66%)'\n#\ndisk_show=('/')\n\n# Disk subtitle.\n# What to append to the Disk subtitle.\n#\n# Default: 'mount'\n# Values:  'mount', 'name', 'dir', 'none'\n# Flag:    --disk_subtitle\n#\n# Example:\n# name:   'Disk (/dev/sda1): 74G / 118G (66%)'\n#         'Disk (/dev/sdb2): 74G / 118G (66%)'\n#\n# mount:  'Disk (/): 74G / 118G (66%)'\n#         'Disk (/mnt/Local Disk): 74G / 118G (66%)'\n#         'Disk (/mnt/Videos): 74G / 118G (66%)'\n#\n# dir:    'Disk (/): 74G / 118G (66%)'\n#         'Disk (Local Disk): 74G / 118G (66%)'\n#         'Disk (Videos): 74G / 118G (66%)'\n#\n# none:   'Disk: 74G / 118G (66%)'\n#         'Disk: 74G / 118G (66%)'\n#         'Disk: 74G / 118G (66%)'\ndisk_subtitle=\"mount\"\n\n# Disk percent.\n# Show/Hide disk percent.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --disk_percent\n#\n# Example:\n# on:  'Disk (/): 74G / 118G (66%)'\n# off: 'Disk (/): 74G / 118G'\ndisk_percent=\"on\"\n\n\n# Song\n\n\n# Manually specify a music player.\n#\n# Default: 'auto'\n# Values:  'auto', 'player-name'\n# Flag:    --music_player\n#\n# Available values for 'player-name':\n#\n# amarok\n# audacious\n# banshee\n# bluemindo\n# clementine\n# cmus\n# deadbeef\n# deepin-music\n# dragon\n# elisa\n# exaile\n# gnome-music\n# gmusicbrowser\n# gogglesmm\n# guayadeque\n# io.elementary.music\n# iTunes\n# juk\n# lollypop\n# mocp\n# mopidy\n# mpd\n# muine\n# netease-cloud-music\n# olivia\n# playerctl\n# pogo\n# pragha\n# qmmp\n# quodlibet\n# rhythmbox\n# sayonara\n# smplayer\n# spotify\n# strawberry\n# tauonmb\n# tomahawk\n# vlc\n# xmms2d\n# xnoise\n# yarock\nmusic_player=\"auto\"\n\n# Format to display song information.\n#\n# Default: '%artist% - %album% - %title%'\n# Values:  '%artist%', '%album%', '%title%'\n# Flag:    --song_format\n#\n# Example:\n# default: 'Song: Jet - Get Born - Sgt Major'\nsong_format=\"%artist% - %album% - %title%\"\n\n# Print the Artist, Album and Title on separate lines\n#\n# Default: 'off'\n# Values:  'on', 'off'\n# Flag:    --song_shorthand\n#\n# Example:\n# on:  'Artist: The Fratellis'\n#      'Album: Costello Music'\n#      'Song: Chelsea Dagger'\n#\n# off: 'Song: The Fratellis - Costello Music - Chelsea Dagger'\nsong_shorthand=\"off\"\n\n# 'mpc' arguments (specify a host, password etc).\n#\n# Default:  ''\n# Example: mpc_args=(-h HOST -P PASSWORD)\nmpc_args=()\n\n\n# Text Colors\n\n\n# Text Colors\n#\n# Default:  'distro'\n# Values:   'distro', 'num' 'num' 'num' 'num' 'num' 'num'\n# Flag:     --colors\n#\n# Each number represents a different part of the text in\n# this order: 'title', '@', 'underline', 'subtitle', 'colon', 'info'\n#\n# Example:\n# colors=(distro)      - Text is colored based on Distro colors.\n# colors=(4 6 1 8 8 6) - Text is colored in the order above.\ncolors=(distro)\n\n\n# Text Options\n\n\n# Toggle bold text\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --bold\nbold=\"on\"\n\n# Enable/Disable Underline\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --underline\nunderline_enabled=\"on\"\n\n# Underline character\n#\n# Default:  '-'\n# Values:   'string'\n# Flag:     --underline_char\nunderline_char=\"-\"\n\n\n# Info Separator\n# Replace the default separator with the specified string.\n#\n# Default:  ':'\n# Flag:     --separator\n#\n# Example:\n# separator=\"->\":   'Shell-> bash'\n# separator=\" =\":   'WM = dwm'\nseparator=\":\"\n\n\n# Color Blocks\n\n\n# Color block range\n# The range of colors to print.\n#\n# Default:  '0', '15'\n# Values:   'num'\n# Flag:     --block_range\n#\n# Example:\n#\n# Display colors 0-7 in the blocks.  (8 colors)\n# neofetch --block_range 0 7\n#\n# Display colors 0-15 in the blocks. (16 colors)\n# neofetch --block_range 0 15\nblock_range=(0 15)\n\n# Toggle color blocks\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --color_blocks\ncolor_blocks=\"off\"\n\n# Color block width in spaces\n#\n# Default:  '3'\n# Values:   'num'\n# Flag:     --block_width\nblock_width=3\n\n# Color block height in lines\n#\n# Default:  '1'\n# Values:   'num'\n# Flag:     --block_height\nblock_height=1\n\n# Color Alignment\n#\n# Default: 'auto'\n# Values: 'auto', 'num'\n# Flag: --col_offset\n#\n# Number specifies how far from the left side of the terminal (in spaces) to\n# begin printing the columns, in case you want to e.g. center them under your\n# text.\n# Example:\n# col_offset=\"auto\" - Default behavior of neofetch\n# col_offset=7      - Leave 7 spaces then print the colors\ncol_offset=\"auto\"\n\n# Progress Bars\n\n\n# Bar characters\n#\n# Default:  '-', '='\n# Values:   'string', 'string'\n# Flag:     --bar_char\n#\n# Example:\n# neofetch --bar_char 'elapsed' 'total'\n# neofetch --bar_char '-' '='\nbar_char_elapsed=\"-\"\nbar_char_total=\"=\"\n\n# Toggle Bar border\n#\n# Default:  'on'\n# Values:   'on', 'off'\n# Flag:     --bar_border\nbar_border=\"on\"\n\n# Progress bar length in spaces\n# Number of chars long to make the progress bars.\n#\n# Default:  '15'\n# Values:   'num'\n# Flag:     --bar_length\nbar_length=15\n\n# Progress bar colors\n# When set to distro, uses your distro's logo colors.\n#\n# Default:  'distro', 'distro'\n# Values:   'distro', 'num'\n# Flag:     --bar_colors\n#\n# Example:\n# neofetch --bar_colors 3 4\n# neofetch --bar_colors distro 5\nbar_color_elapsed=\"distro\"\nbar_color_total=\"distro\"\n\n\n# Info display\n# Display a bar with the info.\n#\n# Default: 'off'\n# Values:  'bar', 'infobar', 'barinfo', 'off'\n# Flags:   --cpu_display\n#          --memory_display\n#          --battery_display\n#          --disk_display\n#\n# Example:\n# bar:     '[---=======]'\n# infobar: 'info [---=======]'\n# barinfo: '[---=======] info'\n# off:     'info'\ncpu_display=\"off\"\nmemory_display=\"off\"\nbattery_display=\"off\"\ndisk_display=\"off\"\n\n\n# Backend Settings\n\nimage_backend=\"ascii\"\nimage_source=\"ascii\"\nascii=\"/home/user/.config/neofetch/ascii/ascii.txt\"\nascii_distro=\"none\"\nascii_colors=(208 240)\n\n\n# Image backend.\n#\n# Default:  'ascii'\n# Values:   'ascii', 'caca', 'chafa', 'jp2a', 'iterm2', 'off',\n#           'pot', 'termpix', 'pixterm', 'tycat', 'w3m', 'kitty'\n# Flag:     --backend\n#image_backend=\"ascii\"\ntitle_color=\"\\e[38;5;208m\"\nunderline_color=\"\\e[90m\"\nascii_padding=2\n# Image Source\n#\n# Which image or ascii file to display.\n#\n# Default:  'auto'\n# Values:   'auto', 'ascii', 'wallpaper', '/path/to/img', '/path/to/ascii', '/path/to/dir/'\n#           'command output (neofetch --ascii \"$(fortune | cowsay -W 30)\")'\n# Flag:     --source\n#\n# NOTE: 'auto' will pick the best image source for whatever image backend is used.\n#       In ascii mode, distro ascii art will be used and in an image mode, your\n#       wallpaper will be used.\n#image_source=\"ascii\"\n#ascii=\"/home/user/.config/neofetch/ascii/ascii.txt\"\n\n# Ascii Options\n\n\n# Ascii distro\n# Which distro's ascii art to display.\n#\n# Default: 'auto'\n# Values:  'auto', 'distro_name'\n# Flag:    --ascii_distro\n# NOTE: AIX, Alpine, Anarchy, Android, Antergos, antiX, \"AOSC OS\",\n#       \"AOSC OS/Retro\", Apricity, ArcoLinux, ArchBox, ARCHlabs,\n#       ArchStrike, XFerience, ArchMerge, Arch, Artix, Arya, Bedrock,\n#       Bitrig, BlackArch, BLAG, BlankOn, BlueLight, bonsai, BSD,\n#       BunsenLabs, Calculate, Carbs, CentOS, Chakra, ChaletOS,\n#       Chapeau, Chrom*, Cleanjaro, ClearOS, Clear_Linux, Clover,\n#       Condres, Container_Linux, CRUX, Cucumber, Debian, Deepin,\n#       DesaOS, Devuan, DracOS, DarkOs, DragonFly, Drauger, Elementary,\n#       EndeavourOS, Endless, EuroLinux, Exherbo, Fedora, Feren, FreeBSD,\n#       FreeMiNT, Frugalware, Funtoo, GalliumOS, Garuda, Gentoo, Pentoo,\n#       gNewSense, GNOME, GNU, GoboLinux, Grombyang, Guix, Haiku, Huayra,\n#       Hyperbola, janus, Kali, KaOS, KDE_neon, Kibojoe, Kogaion,\n#       Korora, KSLinux, Kubuntu, LEDE, LFS, Linux_Lite,\n#       LMDE, Lubuntu, Lunar, macos, Mageia, MagpieOS, Mandriva,\n#       Manjaro, Maui, Mer, Minix, LinuxMint, MX_Linux, Namib,\n#       Neptune, NetBSD, Netrunner, Nitrux, NixOS, Nurunner,\n#       NuTyX, OBRevenge, OpenBSD, openEuler, OpenIndiana, openmamba,\n#       OpenMandriva, OpenStage, OpenWrt, osmc, Oracle, OS Elbrus, PacBSD,\n#       Parabola, Pardus, Parrot, Parsix, TrueOS, PCLinuxOS, Peppermint,\n#       popos, Porteus, PostMarketOS, Proxmox, Puppy, PureOS, Qubes, Radix,\n#       Raspbian, Reborn_OS, Redstar, Redcore, Redhat, Refracted_Devuan,\n#       Regata, Rosa, sabotage, Sabayon, Sailfish, SalentOS, Scientific,\n#       Septor, SereneLinux, SharkLinux, Siduction, Slackware, SliTaz,\n#       SmartOS, Solus, Source_Mage, Sparky, Star, SteamOS, SunOS,\n#       openSUSE_Leap, openSUSE_Tumbleweed, openSUSE, SwagArch, Tails,\n#       Trisquel, Ubuntu-Budgie, Ubuntu-GNOME, Ubuntu-MATE, Ubuntu-Studio,\n#       Ubuntu, Venom, Void, Obarun, windows10, Windows7, Xubuntu, Zorin,\n#       and IRIX have ascii logos\n# NOTE: Arch, Ubuntu, Redhat, and Dragonfly have 'old' logo variants.\n#       Use '{distro name}_old' to use the old logos.\n# NOTE: Ubuntu has flavor variants.\n#       Change this to Lubuntu, Kubuntu, Xubuntu, Ubuntu-GNOME,\n#       Ubuntu-Studio, Ubuntu-Mate  or Ubuntu-Budgie to use the flavors.\n# NOTE: Arcolinux, Dragonfly, Fedora, Alpine, Arch, Ubuntu,\n#       CRUX, Debian, Gentoo, FreeBSD, Mac, NixOS, OpenBSD, android,\n#       Antrix, CentOS, Cleanjaro, ElementaryOS, GUIX, Hyperbola,\n#       Manjaro, MXLinux, NetBSD, Parabola, POP_OS, PureOS,\n#       Slackware, SunOS, LinuxLite, OpenSUSE, Raspbian,\n#       postmarketOS, and Void have a smaller logo variant.\n#       Use '{distro name}_small' to use the small variants.\nascii_distro=\"none\"\n\n# Ascii Colors\n#\n# Default:  'distro'\n# Values:   'distro', 'num' 'num' 'num' 'num' 'num' 'num'\n# Flag:     --ascii_colors\n#\n# Example:\n# ascii_colors=(distro)      - Ascii is colored based on Distro colors.\n# ascii_colors=(4 6 1 8 8 6) - Ascii is colored using these colors.\nascii_colors=(208 7)\nascii_padding=2\n# Bold ascii logo\n# Whether or not to bold the ascii logo.\n#\n# Default: 'on'\n# Values:  'on', 'off'\n# Flag:    --ascii_bold\nascii_bold=\"on\"\n\n\n# Image Options\n\n\n# Image loop\n# Setting this to on will make neofetch redraw the image constantly until\n# Ctrl+C is pressed. This fixes display issues in some terminal emulators.\n#\n# Default:  'off'\n# Values:   'on', 'off'\n# Flag:     --loop\nimage_loop=\"off\"\n\n# Thumbnail directory\n#\n# Default: '~/.cache/thumbnails/neofetch'\n# Values:  'dir'\nthumbnail_dir=\"${XDG_CACHE_HOME:-${HOME}/.cache}/thumbnails/neofetch\"\n\n# Crop mode\n#\n# Default:  'normal'\n# Values:   'normal', 'fit', 'fill'\n# Flag:     --crop_mode\n#\n# See this wiki page to learn about the fit and fill options.\n# https://github.com/dylanaraps/neofetch/wiki/What-is-Waifu-Crop%3F\ncrop_mode=\"normal\"\n\n# Crop offset\n# Note: Only affects 'normal' crop mode.\n#\n# Default:  'center'\n# Values:   'northwest', 'north', 'northeast', 'west', 'center'\n#           'east', 'southwest', 'south', 'southeast'\n# Flag:     --crop_offset\ncrop_offset=\"center\"\n\n# Image size\n# The image is half the terminal width by default.\n#\n# Default: 'auto'\n# Values:  'auto', '00px', '00%', 'none'\n# Flags:   --image_size\n#          --size\nimage_size=\"auto\"\n\n# Gap between image and text\n#\n# Default: '3'\n# Values:  'num', '-num'\n# Flag:    --gap\ngap=1\n\n# Image offsets\n# Only works with the w3m backend.\n#\n# Default: '0'\n# Values:  'px'\n# Flags:   --xoffset\n#          --yoffset\nyoffset=0\nxoffset=0\n\n# Image background color\n# Only works with the w3m backend.\n#\n# Default: ''\n# Values:  'color', 'blue'\n# Flag:    --bg_color\nbackground_color=\n\n\n# Misc Options\n\n# Stdout mode\n# Turn off all colors and disables image backend (ASCII/Image).\n# Useful for piping into another command.\n# Default: 'off'\n# Values: 'on', 'off'\nstdout=\"off\"";
+const SEED_TEMPLATES = [{
+  id: 'tpl-std',
+  name: 'Standard Server',
+  content: '# ── {HOSTNAME} ─────────────────\nalias ll=\'ls -alF --color=auto\'\nalias gs=\'git status\'\nalias dps=\'docker ps\'\nalias dcu=\'docker compose up -d\'\nalias dcd=\'docker compose down\'\nPS1=\'\\[\\033[38;2;74;222;128m\\]\\u\\[\\033[0m\\]@\\[\\033[38;2;96;165;250m\\]{HOSTNAME}\\[\\033[0m\\]:\\[\\033[38;2;251;146;60m\\]\\w\\[\\033[0m\\]\\$ \'\ncd {LOGIN_DIR}',
+  varLabels: {
+    HOSTNAME: 'Hostname',
+    LOGIN_DIR: 'Login Directory'
+  },
+  varDefaults: {
+    HOSTNAME: 'my-server',
+    LOGIN_DIR: '~'
+  }
+}, {
+  id: 'tpl-pi',
+  name: 'Raspberry Pi',
+  content: '# ── Pi · {PINAME} ────────────────\nalias ll=\'ls -alF\'\nalias temp=\'vcgencmd measure_temp\'\nalias gs=\'git status\'\nalias dps=\'docker ps\'\nalias dcu=\'docker compose up -d\'\nPS1=\'\\[\\033[0;32m\\]\\u@{PINAME}\\[\\033[0m\\]:\\[\\033[0;33m\\]\\w\\[\\033[0m\\]\\$ \'',
+  varLabels: {
+    PINAME: 'Pi Hostname'
+  },
+  varDefaults: {
+    PINAME: 'raspberrypi'
+  }
+}];
+function hexToAnsi256(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+  if (!m) return 7;
+  const r = parseInt(m[1], 16),
+    g = parseInt(m[2], 16),
+    b = parseInt(m[3], 16);
+  if (Math.abs(r - g) < 22 && Math.abs(g - b) < 22) {
+    const v = Math.round((r + g + b) / 3);
+    if (v < 8) return 16;
+    if (v > 248) return 231;
+    return Math.round((v - 8) / 247 * 24) + 232;
+  }
+  return 16 + 36 * Math.round(r / 255 * 5) + 6 * Math.round(g / 255 * 5) + Math.round(b / 255 * 5);
+}
+function hexToAnsiEsc(hex) {
+  return '\\e[38;5;' + hexToAnsi256(hex) + 'm';
+}
+function hexToAnsi033(hex) {
+  return '\\033[38;5;' + hexToAnsi256(hex) + 'm';
+}
+function colourToAnsi(val) {
+  if (!val) return '\\e[38;5;7m';
+  if (/^#[0-9a-fA-F]{6}$/.test((val || '').trim())) return hexToAnsiEsc(val.trim());
+  if (/^\\e\[/.test(val) || /^\\033/.test(val)) return val.trim();
+  return '\\e[38;5;' + val.trim() + 'm';
+}
+const hexRgb = h => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
+  return m ? `${parseInt(m[1], 16)};${parseInt(m[2], 16)};${parseInt(m[3], 16)}` : '255;255;255';
+};
+const ansiC = h => `\\[\\033[38;2;${hexRgb(h)}m\\]`;
+const ansiR = '\\[\\033[0m\\]';
+const buildPS1 = c => `${ansiC(c.ps1User)}\\u${ansiR}@${ansiC(c.ps1Host)}\\h${ansiR}:${ansiC(c.ps1Path)}\\w${ansiR}\\$ `;
+const stripAnsi = s => s.replace(/\x1b\[[0-9;]*[mGKHFJABCD]/g, '').replace(/\r/g, '');
+const extractVars = c => [...new Set((c.match(/\{\{([A-Z_0-9]+)\}\}/g) || []).map(m => m.slice(2, -2)))];
+const resolveTemplate = (c, v) => c.replace(/\{\{([A-Z_0-9]+)\}\}/g, (_, k) => v[k] || `{{${k}}}`);
+function processNeofetchConfig(vars) {
+  let cfg = NEOFETCH_TEMPLATE;
+  const c1 = colourToAnsi(vars.colour1 || '#005FAF');
+  const c2 = colourToAnsi(vars.colour2 || '#808080');
+  const c3 = colourToAnsi(vars.colour3 || '#87AFFF');
+  cfg = cfg.split('${@2@COLOUR1@2@}').join(c1);
+  cfg = cfg.split('${@3@COLOUR2@3@}').join(c2);
+  cfg = cfg.split('${@4@COLOUR3@4@}').join(c3);
+  cfg = cfg.replace(/local @2@COLOUR1@2@="[^"]*"/g, 'local _nf_c1="' + c1 + '"');
+  cfg = cfg.replace(/local @3@COLOUR2@3@="[^"]*"/g, 'local _nf_c2="' + c2 + '"');
+  cfg = cfg.replace(/local @4@COLOUR3@4@="[^"]*"/g, 'local _nf_c3="' + c3 + '"');
+  cfg = cfg.split('@2@COLOUR1@2@').join('_nf_c1');
+  cfg = cfg.split('@3@COLOUR2@3@').join('_nf_c2');
+  cfg = cfg.split('@4@COLOUR3@4@').join('_nf_c3');
+  cfg = cfg.split('@1@DOCKER-CONTAINER@1@').join(vars.dockerContainer || 'my-container');
+  cfg = cfg.split('@5@TITLE@5@').join(vars.title || 'My Server');
+  cfg = cfg.split('@6@URL@6@').join(vars.url || 'https://example.com');
+  cfg = cfg.split('@7@URLTEXT@7@').join(vars.urlText || 'Visit Website');
+  return cfg;
+}
+function buildMenuBlock(darkBlue, blue, items, loginDir) {
+  const ESC = '\\033',
+    CR = '\\r';
+  const RST = ESC + '[0m';
+  const optParts = items.map((it, i) => {
+    const c = i === 0 ? darkBlue : blue;
+    return '${' + c + '}' + it.label + '${' + '${' + RST + '}' + '}';
+  });
+  const keyParts = items.map((it, i) => {
+    const c = i === 0 ? darkBlue : blue;
+    return '${' + c + '}' + it.key.toUpperCase() + '${' + '${' + RST + '}' + '}';
+  });
+  const promptLine = '    echo -e " Do you want to run ' + optParts.join(' or ') + ' [ ' + keyParts.join(' | ') + ' ]"';
+  const caseEntries = [];
+  items.forEach(it => {
+    const k = it.key.toUpperCase();
+    caseEntries.push('        [' + k + k.toLowerCase() + ']*' + ' )');
+    if (it.command) {
+      caseEntries.push('            echo -e "${' + blue + '}Running: ' + it.label + '...${' + RST + '}"');
+      caseEntries.push('            ' + it.command);
+    } else {
+      caseEntries.push('            echo ""');
+      caseEntries.push('            echo " Nothing to see here ..."');
+    }
+    caseEntries.push('            ;;');
+  });
+  caseEntries.push('        * )');
+  caseEntries.push('            echo ""');
+  caseEntries.push('            echo " Invalid response. Exiting ..."');
+  caseEntries.push('            ;;');
+  const block = ['', 'if [ -n "$SSH_CONNECTION" ]; then', '', '    # Change to login directory', '    cd ' + loginDir, '', '    # Run Neofetch', '    neofetch --backend chafa --source $HOME/.config/neofetch/image/logo.png --image_size 500px --gap 5', '', '    BLUE="' + blue + '"', '    DARK_BLUE="' + darkBlue + '"', '    RESET="' + RST + '"', '', promptLine, '', '    _blink_prompt() {', '        while true; do', '            echo -en "' + CR + ' ${BLUE}>${RESET}"', '            sleep 0.6', '            echo -en "' + CR + '   "', '            sleep 0.6', '        done', '    }', '', '    _BLINK_PID=$(set +m; _blink_prompt > /dev/tty & echo $!)', '    read answer', '    kill $_BLINK_PID 2>/dev/null', '    wait $_BLINK_PID 2>/dev/null', '    echo -en "' + CR + ESC + '[2K"', '', '    case "$answer" in'].concat(caseEntries).concat(['    esac', '    echo ""', '', 'fi']).join('\n');
+  const fn = ['', '# Update prompt function', 'update_prompt() {', '    BLUE="' + blue + '"', '    DARK_BLUE="' + darkBlue + '"', '    RESET="' + RST + '"', '', promptLine, '', '    _blink_prompt() {', '        while true; do', '            echo -en "' + CR + ' ${BLUE}>${RESET}"', '            sleep 0.6', '            echo -en "' + CR + '   "', '            sleep 0.6', '        done', '    }', '', '    _BLINK_PID=$(set +m; _blink_prompt > /dev/tty & echo $!)', '    read answer', '    kill $_BLINK_PID 2>/dev/null', '    wait $_BLINK_PID 2>/dev/null', '    echo -en "' + CR + ESC + '[2K"', '', '    case "$answer" in'].concat(caseEntries).concat(['    esac', '    echo ""', '}', '', 'alias upp=\'update_prompt\'']).join('\n');
+  return block + fn;
+}
+function buildSSHMenu(bc) {
+  const c1 = hexToAnsi033(bc.sshColour2 || bc.ps1User || '#005FAF');
+  const c2 = hexToAnsi033(bc.sshColour1 || bc.ps1Host || '#87D7FF');
+  const loginDir = (bc.customDir || '').trim() || '~';
+  const items = bc.sshMenuItems || [{
+    key: 'S',
+    label: 'System Updates',
+    command: 'sudo apt-get update && sudo apt-get upgrade -y'
+  }, {
+    key: 'N',
+    label: 'Nothing',
+    command: ''
+  }];
+  return buildMenuBlock(c1, c2, items, loginDir);
+}
+function generateScript(_ref) {
+  var _sw$docker, _sw$git, _sw$neofetch, _sw$portainer, _sw$wazuh, _sw$netdata, _sw$prometheus;
+  let {
+    sw,
+    cfg,
+    sec,
+    infra,
+    custom,
+    hostname,
+    distro,
+    dryRun
+  } = _ref;
+  const L = [];
+  const DR = dryRun ? 'echo "[DRY RUN] " ' : '';
+  const add = function () {
+    for (var _len = arguments.length, ls = new Array(_len), _key = 0; _key < _len; _key++) {
+      ls[_key] = arguments[_key];
+    }
+    return ls.forEach(l => L.push(l));
+  };
+  const sec_ = t => add('', `# ${'─'.repeat(56)}`, `# ${t}`, `# ${'─'.repeat(56)}`);
+  const piModel = PI_MODELS.find(m => m.id === distro.piModel);
+  const osLabel = distro.type === 'ubuntu' ? 'Ubuntu' : `Raspberry Pi OS (${(piModel === null || piModel === void 0 ? void 0 : piModel.label) || distro.piModel})`;
+  add('#!/usr/bin/env bash', `# ${'═'.repeat(58)}`, `#  SWAPS  ·  ${hostname || 'unnamed-host'}  ·  ${osLabel}`, `#  Generated: $(date '+%Y-%m-%d %H:%M:%S')`, dryRun ? '#  ⚠ DRY RUN — commands prefixed with echo' : '', `# ${'═'.repeat(58)}`, '', 'set -euo pipefail', '', 'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"', 'info() { echo -e "${CYN}▸ ${RST}$*"; }', 'ok()   { echo -e "${GRN}✓ ${RST}$*"; }', 'warn() { echo -e "${YLW}⚠ ${RST}$*"; }', '', 'if   command -v apt-get &>/dev/null; then PM=apt-get', 'elif command -v dnf    &>/dev/null; then PM=dnf', 'else PM=yum; fi', `info "OS: ${osLabel}"`, 'info "Updating package index..."', `${DR}sudo $PM update -y -qq`);
+  if (infra.aptRepos.enabled && infra.aptRepos.config.repos.length > 0) {
+    sec_('Custom APT Repositories');
+    infra.aptRepos.config.repos.filter(r => r.line.trim()).forEach(r => {
+      if (r.label) add(`# ${r.label}`);
+      if (r.gpgUrl) add(`${DR}curl -fsSL '${r.gpgUrl}' | sudo gpg --dearmor -o /usr/share/keyrings/${r.id || 'custom'}.gpg`);
+      add(`${DR}echo '${r.line}' | sudo tee /etc/apt/sources.list.d/${r.id || 'custom'}.list`);
+    });
+    add(`${DR}sudo $PM update -y -qq`, 'ok "APT repos added"');
+  }
+  const simplePkgs = {
+    'ncdu': 'ncdu',
+    'htop': 'htop',
+    'tmux': 'tmux',
+    'curl': 'curl',
+    'vim': 'vim',
+    'nmap': 'nmap',
+    'rsync': 'rsync',
+    'unzip': 'unzip',
+    'duf': 'duf'
+  };
+  Object.entries(simplePkgs).forEach(_ref2 => {
+    var _sw$k;
+    let [k, pkg] = _ref2;
+    if ((_sw$k = sw[k]) !== null && _sw$k !== void 0 && _sw$k.enabled) {
+      sec_(pkg);
+      add(`info "Installing ${pkg}..."`, `${DR}sudo $PM install -y ${pkg}`, `ok "${pkg} ready"`);
+    }
+  });
+  if ((_sw$docker = sw.docker) !== null && _sw$docker !== void 0 && _sw$docker.enabled) {
+    sec_('Docker & Docker Compose');
+    add('info "Installing Docker..."', `${DR}curl -fsSL https://get.docker.com | sudo sh`, `${DR}sudo systemctl enable --now docker`);
+    if (sw.docker.config.compose) add(`${DR}sudo $PM install -y docker-compose-plugin`);
+    if (sw.docker.config.dockerGroup) add(`${DR}sudo usermod -aG docker "$USER"`, 'warn "Re-login for docker group"');
+    if (sw.docker.config.dockerDir) add(`${DR}mkdir -p ~/docker`, 'ok "~/docker created"');
+    add('ok "Docker ready"');
+  }
+  if ((_sw$git = sw.git) !== null && _sw$git !== void 0 && _sw$git.enabled) {
+    sec_('Git');
+    add('info "Installing git..."', `${DR}sudo $PM install -y git`);
+    const {
+      username,
+      email,
+      branch
+    } = sw.git.config;
+    if (username) add(`${DR}git config --global user.name "${username}"`);
+    if (email) add(`${DR}git config --global user.email "${email}"`);
+    if (branch) add(`${DR}git config --global init.defaultBranch ${branch}`);
+    add('ok "Git ready"');
+  }
+  if ((_sw$neofetch = sw.neofetch) !== null && _sw$neofetch !== void 0 && _sw$neofetch.enabled) {
+    sec_('Neofetch');
+    add('info "Installing neofetch..."', `${DR}sudo $PM install -y neofetch`, `${DR}mkdir -p ~/.config/neofetch`);
+    const nfc = sw.neofetch.config;
+    if (nfc.useCustomConfig) {
+      const conf = processNeofetchConfig(nfc.nfVars || {});
+      add(`${DR}cat > ~/.config/neofetch/config.conf << 'NFEOF'`, conf, 'NFEOF');
+    }
+    if (nfc.uploadImage && nfc.imageData) {
+      const b64 = nfc.imageData.split(',')[1] || '';
+      const fn = 'logo.png';
+      add(`${DR}mkdir -p ~/.config/neofetch/image`, `base64 -d > ~/.config/neofetch/image/${fn} << 'IMGEOF'`, b64, 'IMGEOF', `ok "Image → ~/.config/neofetch/image/${fn}"`);
+    }
+    if (nfc.bashrcNeofetch) add(`${DR}grep -qxF 'neofetch' ~/.bashrc || echo 'neofetch' >> ~/.bashrc`);
+    add('ok "Neofetch ready"');
+  }
+  if ((_sw$portainer = sw.portainer) !== null && _sw$portainer !== void 0 && _sw$portainer.enabled) {
+    sec_('Portainer CE');
+    const port = sw.portainer.config.port || '9000';
+    add('info "Starting Portainer..."', `${DR}docker volume create portainer_data`, `${DR}docker run -d --name=portainer --restart=always -p ${port}:9000` + ' -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest', `ok "Portainer on :${port}"`);
+  }
+  if ((_sw$wazuh = sw.wazuh) !== null && _sw$wazuh !== void 0 && _sw$wazuh.enabled) {
+    sec_('Wazuh Agent');
+    const {
+      managerIP,
+      managerPort
+    } = sw.wazuh.config;
+    add('info "Installing Wazuh Agent..."', `${DR}curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import`, `${DR}chmod 644 /usr/share/keyrings/wazuh.gpg`, `${DR}echo 'deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main' | sudo tee /etc/apt/sources.list.d/wazuh.list`, `${DR}sudo apt-get update -qq`, `WAZUH_MANAGER="${managerIP || 'YOUR_MANAGER_IP'}" WAZUH_MANAGER_PORT="${managerPort || '1514'}" ${DR}sudo apt-get install -y wazuh-agent`, `${DR}sudo systemctl daemon-reload && sudo systemctl enable --now wazuh-agent`, 'ok "Wazuh Agent running"');
+  }
+  if ((_sw$netdata = sw.netdata) !== null && _sw$netdata !== void 0 && _sw$netdata.enabled) {
+    sec_('Netdata');
+    add('info "Installing Netdata..."', `${DR}bash <(curl -Ss https://my-netdata.io/kickstart.sh) --non-interactive`, `${DR}sudo systemctl enable --now netdata`, 'ok "Netdata running on :19999"');
+  }
+  if ((_sw$prometheus = sw.prometheus) !== null && _sw$prometheus !== void 0 && _sw$prometheus.enabled) {
+    sec_('Prometheus Node Exporter');
+    add('info "Installing Prometheus Node Exporter..."', `${DR}sudo $PM install -y prometheus-node-exporter`, `${DR}sudo systemctl enable --now prometheus-node-exporter`, 'ok "Node Exporter on :9100"');
+  }
+  if (infra.cronJobs.enabled && infra.cronJobs.config.jobs.length > 0) {
+    sec_('Cron Jobs');
+    add('info "Adding cron jobs..."');
+    infra.cronJobs.config.jobs.filter(j => j.schedule && j.command).forEach(j => {
+      const entry = `${j.schedule} ${j.command}`;
+      add(`${DR}( crontab -l 2>/dev/null; echo '${entry}' ) | crontab -`);
+      if (j.label) add(`# Added: ${j.label}`);
+    });
+    add('ok "Cron jobs added"');
+  }
+  if (cfg.sshKeys.enabled && cfg.sshKeys.config.keys.length > 0) {
+    sec_('SSH Authorized Keys');
+    add('info "Adding SSH keys..."', `${DR}mkdir -p ~/.ssh && chmod 700 ~/.ssh`, `${DR}touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`);
+    cfg.sshKeys.config.keys.filter(k => k.key.trim()).forEach(k => {
+      if (k.label) add(`# ${k.label}`);
+      add(`${DR}echo '${k.key.trim()}' >> ~/.ssh/authorized_keys`);
+    });
+    add('ok "SSH keys added"');
+  }
+  if (cfg.bashrc.enabled) {
+    sec_('.bashrc Configuration');
+    const bc = cfg.bashrc.config;
+    add('info "Configuring .bashrc..."', "cp ~/.bashrc ~/.bashrc.bak.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true");
+    if (bc.mode === 'custom' && bc.customContent.trim()) {
+      add(`${DR}cat >> ~/.bashrc << 'BASHRCEOF'`, bc.customContent, 'BASHRCEOF');
+    } else {
+      add(`${DR}cat >> ~/.bashrc << 'BASHRCEOF'`, '', '# ── SWAPS ──────────────────────────────────────────────');
+      if (bc.aliases.length > 0) {
+        add('', '# Aliases');
+        bc.aliases.filter(a => a.name && a.cmd).forEach(a => add(`alias ${a.name}='${a.cmd}'`));
+      }
+      add('', '# PS1', `PS1='${buildPS1(bc)}'`);
+      if (bc.sshMenu) {
+        add('', buildSSHMenu(bc));
+      } else if (bc.customDir.trim()) add('', '# Login dir', `cd ${bc.customDir.trim()}`);
+      add('', 'BASHRCEOF');
+    }
+    add('', 'ok ".bashrc configured"');
+  }
+  if (cfg.envVars.enabled && cfg.envVars.config.vars.length > 0) {
+    sec_('Environment Variables');
+    add('info "Adding environment variables..."', `${DR}cat >> ~/.bashrc << 'ENVEOF'`, '', '# ── SWAPS Env Vars ──');
+    cfg.envVars.config.vars.filter(v => v.key && v.value).forEach(v => add(`export ${v.key}='${v.value}'`));
+    add('', 'ENVEOF', 'ok "Env vars added"');
+  }
+  if (cfg.vimrc.enabled && cfg.vimrc.config.content.trim()) {
+    sec_('~/.vimrc');
+    add('info "Writing .vimrc..."', `${DR}cat > ~/.vimrc << 'VIMEOF'`, cfg.vimrc.config.content, 'VIMEOF', 'ok ".vimrc written"');
+  }
+  if (cfg.tmuxConf.enabled && cfg.tmuxConf.config.content.trim()) {
+    sec_('~/.tmux.conf');
+    add('info "Writing .tmux.conf..."', `${DR}cat > ~/.tmux.conf << 'TMUXEOF'`, cfg.tmuxConf.config.content, 'TMUXEOF', 'ok ".tmux.conf written"');
+  }
+  if (cfg.gitconfig.enabled) {
+    sec_('~/.gitconfig');
+    const {
+      name,
+      email,
+      editor
+    } = cfg.gitconfig.config;
+    if (name) add(`${DR}git config --global user.name "${name}"`);
+    if (email) add(`${DR}git config --global user.email "${email}"`);
+    if (editor) add(`${DR}git config --global core.editor "${editor}"`);
+    add('ok ".gitconfig written"');
+  }
+  if (sec.sshHardening.enabled) {
+    sec_('SSH Hardening');
+    const sh = sec.sshHardening.config;
+    add('info "Hardening SSH..."');
+    if (sh.disablePasswordAuth) add(`${DR}sudo sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config`);
+    if (sh.disableRoot) add(`${DR}sudo sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config`);
+    if (sh.port && sh.port !== '22') add(`${DR}sudo sed -i 's/^#*Port.*/Port ${sh.port}/' /etc/ssh/sshd_config`);
+    if (sh.disableX11) add(`${DR}sudo sed -i 's/^#*X11Forwarding.*/X11Forwarding no/' /etc/ssh/sshd_config`);
+    add(`${DR}sudo systemctl restart sshd`, 'ok "SSH hardened"');
+    if (sh.port && sh.port !== '22') add(`warn "SSH now on port ${sh.port} — update your connection!"`);
+  }
+  if (sec.ufw.enabled) {
+    sec_('UFW Firewall');
+    const uf = sec.ufw.config;
+    add('info "Configuring UFW..."', `${DR}sudo $PM install -y ufw`, `${DR}sudo ufw default deny incoming`, `${DR}sudo ufw default allow outgoing`);
+    const activePreset = UFW_PRESETS.find(p => p.id === uf.preset);
+    const rules = [...((activePreset === null || activePreset === void 0 ? void 0 : activePreset.rules) || []), ...(uf.customRules || []).filter(r => r.trim())];
+    rules.forEach(r => add(`${DR}sudo ufw ${r}`));
+    add(`${DR}sudo ufw --force enable`, 'ok "UFW enabled"');
+  }
+  if (sec.fail2ban.enabled) {
+    sec_('fail2ban');
+    const fb = sec.fail2ban.config;
+    add('info "Installing fail2ban..."', `${DR}sudo $PM install -y fail2ban`);
+    if (fb.sshEnabled) {
+      add(`${DR}cat > /etc/fail2ban/jail.local << 'F2BEOF'`, '[sshd]', `enabled = true`, `maxretry = ${fb.maxRetry || 5}`, `bantime = ${fb.banTime || '1h'}`, `findtime = ${fb.findTime || '10m'}`, 'F2BEOF');
+    }
+    add(`${DR}sudo systemctl enable --now fail2ban`, 'ok "fail2ban running"');
+  }
+  if (infra.portainerStack.enabled && infra.portainerStack.config.compose.trim()) {
+    sec_('Portainer Stack Deploy');
+    add('info "Deploying Portainer stack..."', `${DR}mkdir -p ~/stacks`, `${DR}cat > ~/stacks/swaps-stack.yml << 'STACKEOF'`, infra.portainerStack.config.compose, 'STACKEOF', `${DR}docker compose -f ~/stacks/swaps-stack.yml up -d`, 'ok "Stack deployed"');
+  }
+  if (infra.dnsEntries.enabled && infra.dnsEntries.config.entries.length > 0) {
+    sec_('DNS / Hosts Entries');
+    add('info "Adding /etc/hosts entries..."');
+    infra.dnsEntries.config.entries.filter(e => e.ip && e.hostname).forEach(e => {
+      add(`${DR}echo '${e.ip} ${e.hostname}' | sudo tee -a /etc/hosts`);
+    });
+    add('ok "Hosts entries added"');
+  }
+  if (custom.length > 0) {
+    sec_('Custom Commands');
+    custom.forEach(c => {
+      if (c.label) add(`# ${c.label}`);
+      if (c.command.trim()) add(c.command.trim());
+    });
+  }
+  add('', `# ${'═'.repeat(58)}`, 'echo -e "${GRN}"', `echo "  ┌─────────────────────────────────────────────────────┐"`, `echo "  │  ✓  SWAPS complete — ${(hostname || 'unnamed-host').substring(0, 36).padEnd(36)} │"`, `echo "  └─────────────────────────────────────────────────────┘"`, 'echo -e "${RST}"');
+  return L.join('\n');
+}
+function generateRollback(_ref3) {
+  var _sw$git2, _sw$neofetch2, _sw$fail2ban, _sec$fail2ban, _sw$docker2, _sec$ufw, _sec$sshHardening, _cfg$vimrc, _cfg$tmuxConf;
+  let {
+    sw,
+    cfg,
+    sec,
+    infra,
+    hostname
+  } = _ref3;
+  const L = [];
+  const add = function () {
+    for (var _len2 = arguments.length, ls = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      ls[_key2] = arguments[_key2];
+    }
+    return ls.forEach(l => L.push(l));
+  };
+  add('#!/usr/bin/env bash', `# SWAPS Rollback — ${hostname || 'unnamed-host'}`, '# WARNING: This undoes the provisioning', '', 'set -euo pipefail', '', 'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"', 'warn() { echo -e "${YLW}⚠ ${RST}$*"; }', 'ok()   { echo -e "${GRN}✓ ${RST}$*"; }', '', 'warn "Starting rollback for ${HOSTNAME}..."', '');
+  if (cfg.bashrc.enabled) add('# Restore .bashrc', 'cp ~/.bashrc.bak.* ~/.bashrc 2>/dev/null && ok ".bashrc restored" || warn "No .bashrc backup found"', '');
+  const pkgsToRemove = [];
+  ['ncdu', 'htop', 'tmux', 'nmap', 'rsync', 'unzip', 'duf'].forEach(k => {
+    var _sw$k2;
+    if ((_sw$k2 = sw[k]) !== null && _sw$k2 !== void 0 && _sw$k2.enabled) pkgsToRemove.push(k);
+  });
+  if ((_sw$git2 = sw.git) !== null && _sw$git2 !== void 0 && _sw$git2.enabled) pkgsToRemove.push('git');
+  if ((_sw$neofetch2 = sw.neofetch) !== null && _sw$neofetch2 !== void 0 && _sw$neofetch2.enabled) pkgsToRemove.push('neofetch');
+  if ((_sw$fail2ban = sw.fail2ban) !== null && _sw$fail2ban !== void 0 && _sw$fail2ban.enabled || (_sec$fail2ban = sec.fail2ban) !== null && _sec$fail2ban !== void 0 && _sec$fail2ban.enabled) pkgsToRemove.push('fail2ban');
+  if (pkgsToRemove.length > 0) add(`# Remove packages`, `sudo apt-get remove -y ${pkgsToRemove.join(' ')}`, `sudo apt-get autoremove -y`, `ok "Packages removed"`, '');
+  if ((_sw$docker2 = sw.docker) !== null && _sw$docker2 !== void 0 && _sw$docker2.enabled) add('# Remove Docker', 'sudo apt-get purge -y docker-ce docker-ce-cli containerd.io', 'sudo rm -rf /var/lib/docker', 'ok "Docker removed"', '');
+  if ((_sec$ufw = sec.ufw) !== null && _sec$ufw !== void 0 && _sec$ufw.enabled) add('# Disable UFW', 'sudo ufw disable', 'ok "UFW disabled"', '');
+  if ((_sec$sshHardening = sec.sshHardening) !== null && _sec$sshHardening !== void 0 && _sec$sshHardening.enabled) add('# Restore SSH defaults', 'sudo sed -i \'s/^PasswordAuthentication no/PasswordAuthentication yes/\' /etc/ssh/sshd_config', 'sudo systemctl restart sshd', 'ok "SSH defaults restored"', '');
+  if ((_cfg$vimrc = cfg.vimrc) !== null && _cfg$vimrc !== void 0 && _cfg$vimrc.enabled) add('# Remove .vimrc', 'rm -f ~/.vimrc', '');
+  if ((_cfg$tmuxConf = cfg.tmuxConf) !== null && _cfg$tmuxConf !== void 0 && _cfg$tmuxConf.enabled) add('# Remove .tmux.conf', 'rm -f ~/.tmux.conf', '');
+  add('ok "Rollback complete"');
+  return L.join('\n');
+}
+function generateAnsible(_ref4) {
+  var _sw$docker3, _sw$ufw, _sec$ufw2;
+  let {
+    sw,
+    cfg,
+    sec,
+    infra,
+    hostname
+  } = _ref4;
+  const L = [];
+  const add = function () {
+    for (var _len3 = arguments.length, ls = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+      ls[_key3] = arguments[_key3];
+    }
+    return ls.forEach(l => L.push(l));
+  };
+  add(`---`, `- name: SWAPS Provisioning — ${hostname || 'target'}`, `  hosts: all`, `  become: yes`, `  tasks:`);
+  add(`    - name: Update apt cache`, `      apt:`, `        update_cache: yes`);
+  const pkgs = [];
+  ['ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'git', 'neofetch'].forEach(k => {
+    var _sw$k3;
+    if ((_sw$k3 = sw[k]) !== null && _sw$k3 !== void 0 && _sw$k3.enabled) pkgs.push(k);
+  });
+  if (pkgs.length > 0) {
+    add(`    - name: Install packages`, `      apt:`, `        name:`);
+    pkgs.forEach(p => add(`          - ${p}`));
+    add(`        state: present`);
+  }
+  if ((_sw$docker3 = sw.docker) !== null && _sw$docker3 !== void 0 && _sw$docker3.enabled) {
+    add(`    - name: Install Docker`, `      shell: curl -fsSL https://get.docker.com | sh`, `      args:`, `        creates: /usr/bin/docker`);
+    if (sw.docker.config.compose) add(`    - name: Install Docker Compose plugin`, `      apt:`, `        name: docker-compose-plugin`, `        state: present`);
+  }
+  if ((_sw$ufw = sw.ufw) !== null && _sw$ufw !== void 0 && _sw$ufw.enabled || (_sec$ufw2 = sec.ufw) !== null && _sec$ufw2 !== void 0 && _sec$ufw2.enabled) {
+    add(`    - name: Install and configure UFW`, `      ufw:`, `        state: enabled`, `        policy: deny`);
+    const preset = UFW_PRESETS.find(p => {
+      var _sec$ufw3;
+      return p.id === (((_sec$ufw3 = sec.ufw) === null || _sec$ufw3 === void 0 || (_sec$ufw3 = _sec$ufw3.config) === null || _sec$ufw3 === void 0 ? void 0 : _sec$ufw3.preset) || 'ssh-only');
+    });
+    ((preset === null || preset === void 0 ? void 0 : preset.rules) || ['allow 22/tcp']).forEach(r => {
+      const parts = r.split(' ');
+      add(`    - name: UFW ${r}`, `      ufw:`, `        rule: ${parts[0]}`, `        port: '${(parts[1] || '22').split('/')[0]}'`, `        proto: ${(parts[1] || '22/tcp').split('/')[1] || 'tcp'}`);
+    });
+  }
+  if (cfg.bashrc.enabled && cfg.bashrc.config.aliases.length > 0) {
+    add(`    - name: Configure .bashrc aliases`, `      blockinfile:`, `        path: ~/.bashrc`, `        block: |`);
+    cfg.bashrc.config.aliases.filter(a => a.name && a.cmd).forEach(a => add(`          alias ${a.name}='${a.cmd}'`));
+  }
+  return L.join('\n');
+}
+function hlBash(code) {
+  const CC = {
+    c: '#6a737d',
+    k: '#f97583',
+    cmd: '#85e89d',
+    s: '#ffea7f',
+    v: '#79b8ff',
+    sec: '#a371f7'
+  };
+  return code.split('\n').map((line, i) => {
+    const n = `<span style="color:${CC.c};user-select:none;display:inline-block;width:36px;text-align:right;padding-right:10px">${i + 1}</span>`;
+    let h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (line.trimStart().startsWith('# ═') || line.trimStart().startsWith('# ─')) return `${n}<span style="color:${CC.sec};font-weight:600">${h}</span>`;
+    if (line.trimStart().startsWith('#')) return `${n}<span style="color:${CC.c};font-style:italic">${h}</span>`;
+    h = h.replace(/\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|export|local|set)\b/g, `<span style="color:${CC.k}">$1</span>`);
+    h = h.replace(/\b(echo|printf|sudo|apt-get|curl|wget|docker|git|mkdir|chmod|chown|touch|cat|cp|mv|systemctl|usermod|gpg|tee|bash|sh|ufw|fail2ban|crontab|sed)\b/g, `<span style="color:${CC.cmd}">$1</span>`);
+    h = h.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span style="color:${CC.s}">"$1"</span>`);
+    h = h.replace(/'([^']*)'/g, `<span style="color:${CC.s}">'$1'</span>`);
+    h = h.replace(/(\$\{?[\w@#?]+\}?)/g, `<span style="color:${CC.v}">$1</span>`);
+    return `${n}${h}`;
+  }).join('\n');
+}
+function hlAnsible(code) {
+  return code.split('\n').map((line, i) => {
+    const n = `<span style="color:#6a737d;user-select:none;display:inline-block;width:36px;text-align:right;padding-right:10px">${i + 1}</span>`;
+    let h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (h.trimStart().startsWith('-')) h = h.replace(/^(\s*-\s*)(\w+:)/, `$1<span style="color:#f97583">$2</span>`);
+    if (/^\s+\w+:/.test(h)) h = h.replace(/^(\s+)(\w+:)/, `$1<span style="color:#79b8ff">$2</span>`);
+    if (/^---/.test(h.trim())) h = `<span style="color:#a371f7">${h}</span>`;
+    return `${n}${h}`;
+  }).join('\n');
+}
+function diffScripts(oldS, newS) {
+  const oldL = oldS.split('\n'),
+    newL = newS.split('\n');
+  return newL.map((line, i) => {
+    const h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (!oldL.includes(line)) return `<span style="background:rgba(63,185,80,.15);display:block">${h}</span>`;
+    return `<span style="opacity:.5">${h}</span>`;
+  }).join('\n');
+}
+function encodeConfig(state) {
+  const safe = {
+    hostname: state.hostname,
+    distro: state.distro,
+    sw: state.sw,
+    cfg: state.cfg,
+    sec: state.sec,
+    infra: state.infra
+  };
+  try {
+    return btoa(encodeURIComponent(JSON.stringify(safe)));
+  } catch {
+    return '';
+  }
+}
+function decodeConfig(str) {
+  try {
+    return JSON.parse(decodeURIComponent(atob(str)));
+  } catch {
+    return null;
+  }
+}
+function lineColor(t) {
+  const s = stripAnsi(t).trim();
+  if (s.startsWith('✓')) return 'var(--green)';
+  if (s.startsWith('⚠')) return 'var(--amber)';
+  if (s.startsWith('▸')) return '#22d3ee';
+  if (/error|Error|failed/i.test(s)) return 'var(--red)';
+  return 'var(--text)';
+}
+function Toggle(_ref5) {
+  let {
+    on,
+    onChange
+  } = _ref5;
+  return React.createElement("div", {
+    onClick: onChange,
+    style: {
+      width: 38,
+      height: 20,
+      borderRadius: 10,
+      background: on ? 'var(--teal)' : 'var(--bdr)',
+      position: 'relative',
+      cursor: 'pointer',
+      transition: 'background .2s',
+      flexShrink: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: 3,
+      left: on ? 21 : 3,
+      width: 14,
+      height: 14,
+      borderRadius: '50%',
+      background: '#fff',
+      transition: 'left .2s',
+      boxShadow: '0 1px 3px rgba(0,0,0,.4)'
+    }
+  }));
+}
+function Check(_ref6) {
+  let {
+    label,
+    checked,
+    onChange,
+    indented
+  } = _ref6;
+  return React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 8,
+      cursor: 'pointer',
+      marginBottom: 8,
+      paddingLeft: indented ? 12 : 0
+    }
+  }, React.createElement("div", {
+    onClick: onChange,
+    style: {
+      width: 15,
+      height: 15,
+      flexShrink: 0,
+      marginTop: 1,
+      border: `1.5px solid ${checked ? 'var(--teal)' : 'var(--bdr)'}`,
+      borderRadius: 3,
+      background: checked ? 'var(--teal)' : 'transparent',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      transition: 'all .15s'
+    }
+  }, checked && React.createElement("span", {
+    style: {
+      color: '#fff',
+      fontSize: 9,
+      fontWeight: 700,
+      lineHeight: 1
+    }
+  }, "\u2713")), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      lineHeight: 1.4
+    }
+  }, label));
+}
+function Inp(_ref7) {
+  let {
+    label,
+    value,
+    onChange,
+    placeholder,
+    type = 'text',
+    rows,
+    mono
+  } = _ref7;
+  const s = {
+    fontSize: 12,
+    fontFamily: mono ? 'var(--mono)' : 'var(--sans)'
+  };
+  return React.createElement("div", {
+    style: {
+      marginBottom: 9
+    }
+  }, label && React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      marginBottom: 3,
+      fontFamily: 'var(--sans)'
+    }
+  }, label), rows ? React.createElement("textarea", {
+    rows: rows,
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: placeholder,
+    style: s
+  }) : React.createElement("input", {
+    type: type,
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: placeholder,
+    style: s
+  }));
+}
+function Btn(_ref8) {
+  let {
+    children,
+    onClick,
+    variant = 'default',
+    disabled,
+    style = {},
+    size = 'sm'
+  } = _ref8;
+  const pad = size === 'sm' ? '5px 11px' : '7px 16px';
+  const base = {
+    padding: pad,
+    fontSize: 12,
+    borderRadius: 6,
+    border: '1px solid',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontFamily: 'var(--sans)',
+    fontWeight: 500,
+    transition: 'all .15s',
+    opacity: disabled ? .45 : 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    ...style
+  };
+  const v = {
+    default: {
+      borderColor: 'var(--bdr)',
+      background: 'transparent',
+      color: 'var(--text)'
+    },
+    primary: {
+      borderColor: 'var(--teal)',
+      background: 'var(--tealDim)',
+      color: 'var(--teal)'
+    },
+    danger: {
+      borderColor: 'rgba(248,81,73,.4)',
+      background: 'rgba(248,81,73,.1)',
+      color: 'var(--red)'
+    },
+    ghost: {
+      borderColor: 'transparent',
+      background: 'transparent',
+      color: 'var(--dim)'
+    },
+    blue: {
+      borderColor: 'var(--blue)',
+      background: 'var(--blueDim)',
+      color: 'var(--blue)'
+    }
+  };
+  return React.createElement("button", {
+    onClick: disabled ? undefined : onClick,
+    style: {
+      ...base,
+      ...v[variant]
+    }
+  }, children);
+}
+function Tag(_ref9) {
+  let {
+    children,
+    color
+  } = _ref9;
+  const colors = {
+    green: 'rgba(63,185,80,.15)',
+    amber: 'rgba(210,153,34,.15)',
+    red: 'rgba(248,81,73,.15)',
+    blue: 'rgba(56,139,253,.1)',
+    purple: 'rgba(163,113,247,.1)'
+  };
+  const textColors = {
+    green: 'var(--green)',
+    amber: 'var(--amber)',
+    red: 'var(--red)',
+    blue: 'var(--blue)',
+    purple: 'var(--purple)'
+  };
+  return React.createElement("span", {
+    style: {
+      fontSize: 10,
+      padding: '2px 7px',
+      borderRadius: 10,
+      background: colors[color] || colors.blue,
+      color: textColors[color] || textColors.blue,
+      fontFamily: 'var(--sans)',
+      fontWeight: 500
+    }
+  }, children);
+}
+function ColourField(_ref0) {
+  let {
+    label,
+    value,
+    onChange
+  } = _ref0;
+  const isHex = /^#[0-9a-fA-F]{6}$/.test((value || '').trim());
+  const ansi = colourToAnsi(value);
+  const code = isHex ? hexToAnsi256(value.trim()) : '';
+  return React.createElement("div", {
+    style: {
+      marginBottom: 9
+    }
+  }, label && React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      marginBottom: 3,
+      fontFamily: 'var(--sans)'
+    }
+  }, label), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 5,
+      alignItems: 'center'
+    }
+  }, isHex && React.createElement("input", {
+    type: "color",
+    value: value.trim(),
+    onChange: e => onChange(e.target.value)
+  }), React.createElement("input", {
+    value: value,
+    onChange: e => onChange(e.target.value),
+    placeholder: "#87D7FF or 117",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  })), React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: 'var(--faint)',
+      fontFamily: 'var(--mono)',
+      marginTop: 2
+    }
+  }, ansi, code ? ' (ANSI ' + code + ')' : ''));
+}
+function PS1Preview(_ref1) {
+  let {
+    cfg,
+    hostname
+  } = _ref1;
+  return React.createElement("div", {
+    style: {
+      background: '#010409',
+      borderRadius: 6,
+      padding: '7px 12px',
+      fontFamily: 'var(--mono)',
+      fontSize: 12,
+      marginBottom: 8,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("span", {
+    style: {
+      color: cfg.ps1User
+    }
+  }, "user"), React.createElement("span", {
+    style: {
+      color: '#484f58'
+    }
+  }, "@"), React.createElement("span", {
+    style: {
+      color: cfg.ps1Host
+    }
+  }, hostname || 'server'), React.createElement("span", {
+    style: {
+      color: '#484f58'
+    }
+  }, ":"), React.createElement("span", {
+    style: {
+      color: cfg.ps1Path
+    }
+  }, "~/docker"), React.createElement("span", {
+    style: {
+      color: 'var(--text)'
+    }
+  }, " $ "), React.createElement("span", {
+    style: {
+      animation: 'blink 1s step-end infinite',
+      color: 'var(--text)'
+    }
+  }, "\u258A"));
+}
+function LabelledBox(_ref10) {
+  let {
+    label,
+    children,
+    action
+  } = _ref10;
+  return React.createElement("div", {
+    style: {
+      marginBottom: 12
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      fontFamily: 'var(--sans)'
+    }
+  }, label), action), children);
+}
+function SwItem(_ref11) {
+  let {
+    label,
+    desc,
+    icon,
+    on,
+    onToggle,
+    expanded,
+    onExpand,
+    badge,
+    children
+  } = _ref11;
+  const hasConf = !!children;
+  return React.createElement("div", {
+    style: {
+      borderBottom: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '10px 14px',
+      cursor: hasConf && on ? 'pointer' : 'default',
+      background: on ? 'var(--tealDim)' : 'transparent',
+      transition: 'background .15s'
+    },
+    onClick: hasConf && on ? onExpand : undefined
+  }, React.createElement("div", {
+    style: {
+      width: 28,
+      height: 28,
+      borderRadius: 6,
+      background: on ? 'var(--teal)' : '#2c3650',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: 12,
+      color: on ? '#fff' : 'var(--dim)',
+      flexShrink: 0,
+      transition: 'all .2s'
+    }
+  }, icon), React.createElement("div", {
+    style: {
+      flex: 1,
+      minWidth: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: on ? 500 : 400,
+      color: on ? 'var(--text)' : 'var(--faint)',
+      fontFamily: 'var(--sans)',
+      transition: 'color .2s',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6
+    }
+  }, label, badge && React.createElement(Tag, {
+    color: badge.color
+  }, badge.label)), React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginTop: 1
+    }
+  }, desc)), hasConf && on && React.createElement("span", {
+    style: {
+      fontSize: 9,
+      color: 'var(--dim)',
+      transform: expanded ? 'rotate(180deg)' : 'none',
+      display: 'inline-block',
+      transition: 'transform .2s',
+      marginRight: 4
+    }
+  }, "\u25BC"), React.createElement(Toggle, {
+    on: on,
+    onChange: e => {
+      e.stopPropagation && e.stopPropagation();
+      onToggle();
+    }
+  })), on && expanded && children && React.createElement("div", {
+    style: {
+      padding: '8px 14px 14px 52px',
+      background: 'var(--card)',
+      borderTop: '1px solid var(--bdr)'
+    }
+  }, children));
+}
+function Terminal(_ref12) {
+  let {
+    lines,
+    status,
+    sudoPrompt,
+    sudoPassword,
+    onSendInput,
+    progressSections
+  } = _ref12;
+  const ref = useRef(null);
+  const [inp, setInp] = useState('');
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+  }, [lines]);
+  const isActive = status === 'connecting' || status === 'running';
+  const smeta = {
+    idle: {
+      c: 'var(--faint)',
+      l: 'Ready'
+    },
+    connecting: {
+      c: '#22d3ee',
+      l: 'Connecting…'
+    },
+    running: {
+      c: 'var(--amber)',
+      l: 'Running…'
+    },
+    success: {
+      c: 'var(--green)',
+      l: 'Complete'
+    },
+    error: {
+      c: 'var(--red)',
+      l: 'Error'
+    },
+    disconnected: {
+      c: 'var(--amber)',
+      l: 'Disconnected'
+    }
+  };
+  const sm = smeta[status] || smeta.idle;
+  const done = lines.filter(l => stripAnsi(l.text).includes('✓')).length;
+  const total = progressSections || 0;
+  const pct = total > 0 ? Math.min(100, Math.round(done / total * 100)) : 0;
+  return React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '5px 10px',
+      borderBottom: '1px solid var(--bdr)',
+      flexShrink: 0,
+      background: 'var(--surf)'
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 7,
+      height: 7,
+      borderRadius: '50%',
+      background: sm.c,
+      flexShrink: 0
+    }
+  }), React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: sm.c,
+      fontFamily: 'var(--sans)'
+    }
+  }, sm.l), total > 0 && isActive && React.createElement("div", {
+    style: {
+      flex: 1,
+      height: 3,
+      background: 'var(--bdr)',
+      borderRadius: 2,
+      overflow: 'hidden',
+      marginLeft: 4
+    }
+  }, React.createElement("div", {
+    style: {
+      width: pct + '%',
+      height: '100%',
+      background: 'var(--teal)',
+      transition: 'width .3s',
+      borderRadius: 2
+    }
+  })), total > 0 && isActive && React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--mono)'
+    }
+  }, pct, "%"), React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--faint)',
+      fontFamily: 'var(--mono)',
+      marginLeft: 'auto'
+    }
+  }, lines.length, " lines")), sudoPrompt && isActive && React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      padding: '6px 10px',
+      background: 'rgba(210,153,34,.1)',
+      borderBottom: '1px solid rgba(210,153,34,.3)',
+      flexShrink: 0
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--amber)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "\uD83D\uDD10 sudo password required"), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }), sudoPassword && React.createElement(Btn, {
+    onClick: () => onSendInput && onSendInput(sudoPassword + '\n'),
+    variant: "primary",
+    style: {
+      fontSize: 11,
+      padding: '2px 10px'
+    }
+  }, "Send sudo password")), React.createElement("div", {
+    ref: ref,
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '8px 10px',
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.7,
+      background: 'var(--bg)'
+    }
+  }, lines.length === 0 && status === 'idle' && React.createElement("div", {
+    style: {
+      color: 'var(--faint)'
+    }
+  }, "Terminal output will appear here..."), lines.map((l, i) => React.createElement("div", {
+    key: i,
+    style: {
+      color: l.type === 'stderr' ? 'var(--red)' : lineColor(l.text),
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word'
+    }
+  }, stripAnsi(l.text))), isActive && React.createElement("div", {
+    style: {
+      color: '#22d3ee',
+      animation: 'blink 1s step-end infinite'
+    }
+  }, "\u258A")), isActive && React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      padding: '6px 8px',
+      borderTop: '1px solid var(--bdr)',
+      background: 'var(--surf)',
+      flexShrink: 0,
+      alignItems: 'center'
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)',
+      flexShrink: 0
+    }
+  }, "stdin"), React.createElement("input", {
+    value: inp,
+    onChange: e => setInp(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter' && inp.trim()) {
+        onSendInput && onSendInput(inp + '\n');
+        setInp('');
+      }
+    },
+    placeholder: "Type input and press Enter\u2026",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement(Btn, {
+    onClick: () => {
+      if (inp.trim()) {
+        onSendInput && onSendInput(inp + '\n');
+        setInp('');
+      }
+    },
+    variant: "primary",
+    style: {
+      fontSize: 11,
+      padding: '3px 10px',
+      flexShrink: 0
+    }
+  }, "\u21B5")));
+}
+function NeofetchOptions(_ref13) {
+  let {
+    cfg,
+    updSw,
+    lbl
+  } = _ref13;
+  const updCfg = (f, v) => updSw('neofetch', f, v);
+  const updVar = (k, v) => updSw('neofetch', 'nfVars', {
+    ...cfg.nfVars,
+    [k]: v
+  });
+  const fileRef = useRef(null);
+  function handleImg(e) {
+    var _e$target$files;
+    const file = (_e$target$files = e.target.files) === null || _e$target$files === void 0 ? void 0 : _e$target$files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      updCfg('imageData', ev.target.result);
+      updCfg('imageName', file.name);
+    };
+    reader.readAsDataURL(file);
+  }
+  return React.createElement("div", {
+    style: {
+      paddingTop: 8
+    }
+  }, React.createElement(Check, {
+    label: "Upload PNG image to ~/.config/neofetch/image/",
+    checked: cfg.uploadImage,
+    onChange: () => updCfg('uploadImage', !cfg.uploadImage)
+  }), cfg.uploadImage && React.createElement("div", {
+    style: {
+      marginBottom: 10,
+      marginLeft: 20
+    }
+  }, React.createElement("input", {
+    ref: fileRef,
+    type: "file",
+    accept: ".png,image/png",
+    onChange: handleImg,
+    style: {
+      display: 'none'
+    }
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      marginBottom: 4
+    }
+  }, React.createElement(Btn, {
+    onClick: () => fileRef.current && fileRef.current.click(),
+    style: {
+      fontSize: 11
+    }
+  }, "Choose PNG\u2026"), cfg.imageName && React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--teal)',
+      fontFamily: 'var(--mono)'
+    }
+  }, cfg.imageName), cfg.imageData && React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--green)'
+    }
+  }, "\u2713 loaded")), cfg.imageData && React.createElement("img", {
+    src: cfg.imageData,
+    alt: "preview",
+    style: {
+      maxHeight: 50,
+      maxWidth: 100,
+      borderRadius: 4,
+      border: '1px solid var(--bdr)',
+      objectFit: 'contain',
+      background: '#000'
+    }
+  })), React.createElement(Check, {
+    label: "Use custom config.conf from template",
+    checked: cfg.useCustomConfig,
+    onChange: () => updCfg('useCustomConfig', !cfg.useCustomConfig)
+  }), cfg.useCustomConfig && React.createElement("div", {
+    style: {
+      marginLeft: 20,
+      marginBottom: 8
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '10px 12px',
+      border: '1px solid var(--bdr)',
+      marginBottom: 6
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 8
+    }
+  }, "Template Variables"), React.createElement(Inp, {
+    label: "Docker container name",
+    value: cfg.nfVars.dockerContainer,
+    onChange: v => updVar('dockerContainer', v),
+    placeholder: "my-container"
+  }), React.createElement(ColourField, {
+    label: "Colour 1 (primary)",
+    value: cfg.nfVars.colour1,
+    onChange: v => updVar('colour1', v)
+  }), React.createElement(ColourField, {
+    label: "Colour 2 (secondary)",
+    value: cfg.nfVars.colour2,
+    onChange: v => updVar('colour2', v)
+  }), React.createElement(ColourField, {
+    label: "Colour 3 (accent)",
+    value: cfg.nfVars.colour3,
+    onChange: v => updVar('colour3', v)
+  }), React.createElement(Inp, {
+    label: "Title text",
+    value: cfg.nfVars.title,
+    onChange: v => updVar('title', v),
+    placeholder: "My Server"
+  }), React.createElement(Inp, {
+    label: "URL",
+    value: cfg.nfVars.url,
+    onChange: v => updVar('url', v),
+    placeholder: "https://example.com"
+  }), React.createElement(Inp, {
+    label: "URL link text",
+    value: cfg.nfVars.urlText,
+    onChange: v => updVar('urlText', v),
+    placeholder: "Visit Website"
+  }))), React.createElement(Check, {
+    label: "Add 'neofetch' command to .bashrc",
+    checked: cfg.bashrcNeofetch,
+    onChange: () => updCfg('bashrcNeofetch', !cfg.bashrcNeofetch)
+  }));
+}
+function TemplateEditModal(_ref14) {
+  let {
+    template,
+    onSave,
+    onClose
+  } = _ref14;
+  const [name, setName] = useState((template === null || template === void 0 ? void 0 : template.name) || '');
+  const [content, setContent] = useState((template === null || template === void 0 ? void 0 : template.content) || '');
+  const [varLabels, setVarLabels] = useState((template === null || template === void 0 ? void 0 : template.varLabels) || {});
+  const [varDefaults, setVarDefaults] = useState((template === null || template === void 0 ? void 0 : template.varDefaults) || {});
+  const vars = useMemo(() => extractVars(content), [content]);
+  const save = () => {
+    if (!name.trim()) return;
+    onSave({
+      id: (template === null || template === void 0 ? void 0 : template.id) || uid(),
+      name: name.trim(),
+      content,
+      varLabels,
+      varDefaults
+    });
+  };
+  return React.createElement("div", {
+    className: "modal-overlay",
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      width: 'min(820px,95vw)',
+      maxHeight: '90vh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      animation: 'fadeIn .15s ease'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '12px 18px',
+      borderBottom: '1px solid var(--bdr)',
+      flexShrink: 0
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)'
+    }
+  }, template !== null && template !== void 0 && template.id ? 'Edit Template' : 'New Template'), React.createElement(Btn, {
+    onClick: onClose,
+    variant: "ghost"
+  }, "\u2715")), React.createElement("div", {
+    style: {
+      padding: '12px 18px 0',
+      flexShrink: 0
+    }
+  }, React.createElement(Inp, {
+    label: "Template name",
+    value: name,
+    onChange: setName,
+    placeholder: "My Server Config"
+  })), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 0,
+      flex: 1,
+      overflow: 'hidden',
+      minHeight: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      flex: 1,
+      padding: '0 0 0 18px',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      borderRight: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      fontFamily: 'var(--sans)',
+      padding: '8px 0 4px'
+    }
+  }, "Content \u2014 use ", '{{VARIABLE}}', " for placeholders"), React.createElement("textarea", {
+    value: content,
+    onChange: e => setContent(e.target.value),
+    placeholder: '# Your .bashrc additions\n# Use {{HOSTNAME}}, {{LOGIN_DIR}} etc\nalias ll=\'ls -alF\'\ncd {{LOGIN_DIR}}',
+    style: {
+      flex: 1,
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.65,
+      resize: 'none',
+      marginBottom: 12
+    }
+  })), React.createElement("div", {
+    style: {
+      width: 260,
+      flexShrink: 0,
+      padding: '0 14px',
+      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      fontFamily: 'var(--sans)',
+      padding: '8px 0 6px'
+    }
+  }, "Detected variables (", vars.length, ")"), vars.length === 0 && React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "No ", '{{VARIABLES}}', " yet."), vars.map(k => React.createElement("div", {
+    key: k,
+    style: {
+      marginBottom: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontFamily: 'var(--mono)',
+      color: 'var(--teal)',
+      marginBottom: 3
+    }
+  }, `{{${k}}}`), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      marginBottom: 2,
+      fontFamily: 'var(--sans)'
+    }
+  }, "Label"), React.createElement("input", {
+    value: varLabels[k] || '',
+    onChange: e => setVarLabels(p => ({
+      ...p,
+      [k]: e.target.value
+    })),
+    placeholder: k,
+    style: {
+      fontSize: 11,
+      marginBottom: 4
+    }
+  }), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      marginBottom: 2,
+      fontFamily: 'var(--sans)'
+    }
+  }, "Default"), React.createElement("input", {
+    value: varDefaults[k] || '',
+    onChange: e => setVarDefaults(p => ({
+      ...p,
+      [k]: e.target.value
+    })),
+    placeholder: "(empty)",
+    style: {
+      fontSize: 11
+    }
+  }))))), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end',
+      padding: '10px 18px',
+      borderTop: '1px solid var(--bdr)',
+      flexShrink: 0
+    }
+  }, React.createElement(Btn, {
+    onClick: onClose
+  }, "Cancel"), React.createElement(Btn, {
+    onClick: save,
+    variant: "primary",
+    disabled: !name.trim() || !content.trim()
+  }, "Save Template"))));
+}
+function TemplateUseModal(_ref15) {
+  let {
+    template,
+    onApply,
+    onClose
+  } = _ref15;
+  const vars = useMemo(() => extractVars(template.content), [template.content]);
+  const [vals, setVals] = useState(() => {
+    const v = {};
+    vars.forEach(k => {
+      var _template$varDefaults;
+      v[k] = ((_template$varDefaults = template.varDefaults) === null || _template$varDefaults === void 0 ? void 0 : _template$varDefaults[k]) || '';
+    });
+    return v;
+  });
+  const preview = useMemo(() => resolveTemplate(template.content, vals), [template.content, vals]);
+  return React.createElement("div", {
+    className: "modal-overlay",
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      width: 'min(760px,95vw)',
+      maxHeight: '90vh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      animation: 'fadeIn .15s ease'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '12px 18px',
+      borderBottom: '1px solid var(--bdr)',
+      flexShrink: 0
+    }
+  }, React.createElement("div", null, React.createElement("span", {
+    style: {
+      fontSize: 14,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "Use: "), React.createElement("span", {
+    style: {
+      fontSize: 14,
+      color: 'var(--teal)',
+      fontFamily: 'var(--sans)'
+    }
+  }, template.name)), React.createElement(Btn, {
+    onClick: onClose,
+    variant: "ghost"
+  }, "\u2715")), React.createElement("div", {
+    style: {
+      display: 'flex',
+      flex: 1,
+      overflow: 'hidden',
+      minHeight: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 240,
+      flexShrink: 0,
+      padding: '12px 14px',
+      overflowY: 'auto',
+      borderRight: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 10
+    }
+  }, "Fill in variables:"), vars.length === 0 && React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "No variables."), vars.map(k => {
+    var _template$varLabels, _template$varDefaults2;
+    return React.createElement("div", {
+      key: k,
+      style: {
+        marginBottom: 8
+      }
+    }, React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--dim)',
+        textTransform: 'uppercase',
+        letterSpacing: '.07em',
+        fontFamily: 'var(--sans)',
+        marginBottom: 2
+      }
+    }, ((_template$varLabels = template.varLabels) === null || _template$varLabels === void 0 ? void 0 : _template$varLabels[k]) || k), React.createElement("input", {
+      value: vals[k] || '',
+      onChange: e => setVals(p => ({
+        ...p,
+        [k]: e.target.value
+      })),
+      placeholder: ((_template$varDefaults2 = template.varDefaults) === null || _template$varDefaults2 === void 0 ? void 0 : _template$varDefaults2[k]) || `{{${k}}}`,
+      style: {
+        fontSize: 11
+      }
+    }));
+  })), React.createElement("div", {
+    style: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      fontFamily: 'var(--sans)',
+      padding: '8px 12px 4px',
+      flexShrink: 0
+    }
+  }, "Preview"), React.createElement("pre", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      margin: 0,
+      padding: '4px 12px 12px',
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.65,
+      color: 'var(--text)',
+      background: 'transparent',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word'
+    }
+  }, preview))), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end',
+      padding: '10px 18px',
+      borderTop: '1px solid var(--bdr)',
+      flexShrink: 0
+    }
+  }, React.createElement(Btn, {
+    onClick: onClose
+  }, "Cancel"), React.createElement(Btn, {
+    onClick: () => onApply(preview),
+    variant: "primary"
+  }, "Apply to .bashrc"))));
+}
+function ProfileModal(_ref16) {
+  let {
+    profile,
+    onSave,
+    onClose
+  } = _ref16;
+  const [name, setName] = useState((profile === null || profile === void 0 ? void 0 : profile.name) || '');
+  return React.createElement("div", {
+    className: "modal-overlay",
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      width: 360,
+      padding: 20,
+      animation: 'fadeIn .15s ease'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 12
+    }
+  }, "Save Profile"), React.createElement(Inp, {
+    label: "Profile name",
+    value: name,
+    onChange: setName,
+    placeholder: "My Pi Server"
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end',
+      marginTop: 8
+    }
+  }, React.createElement(Btn, {
+    onClick: onClose
+  }, "Cancel"), React.createElement(Btn, {
+    onClick: () => {
+      if (name.trim()) onSave(name.trim());
+    },
+    variant: "primary",
+    disabled: !name.trim()
+  }, "Save"))));
+}
+function ImportModal(_ref17) {
+  let {
+    onImport,
+    onClose
+  } = _ref17;
+  const [creds, setCreds] = useState({
+    host: '',
+    port: '22',
+    username: 'root',
+    authType: 'password',
+    password: '',
+    privateKey: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const upd = (k, v) => setCreds(p => ({
+    ...p,
+    [k]: v
+  }));
+  return React.createElement("div", {
+    className: "modal-overlay",
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      width: 400,
+      padding: 20,
+      animation: 'fadeIn .15s ease'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4
+    }
+  }, "Import from Host"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 12
+    }
+  }, "SSH into a host to detect installed software."), React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 80px',
+      gap: 8
+    }
+  }, React.createElement(Inp, {
+    label: "Host / IP",
+    value: creds.host,
+    onChange: v => upd('host', v),
+    placeholder: "192.168.1.x"
+  }), React.createElement(Inp, {
+    label: "Port",
+    value: creds.port,
+    onChange: v => upd('port', v),
+    placeholder: "22"
+  })), React.createElement(Inp, {
+    label: "Username",
+    value: creds.username,
+    onChange: v => upd('username', v),
+    placeholder: "root"
+  }), React.createElement(Inp, {
+    label: "Password",
+    value: creds.password,
+    onChange: v => upd('password', v),
+    placeholder: "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+    type: "password"
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end',
+      marginTop: 8
+    }
+  }, React.createElement(Btn, {
+    onClick: onClose
+  }, "Cancel"), React.createElement(Btn, {
+    onClick: () => {
+      setLoading(true);
+      onImport(creds);
+    },
+    variant: "primary",
+    disabled: loading || !creds.host
+  }, loading ? 'Scanning…' : 'Scan Host'))));
+}
+function ShareModal(_ref18) {
+  let {
+    url,
+    onClose
+  } = _ref18;
+  const [copied, setCopied] = useState(false);
+  return React.createElement("div", {
+    className: "modal-overlay",
+    onClick: e => {
+      if (e.target === e.currentTarget) onClose();
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      width: 480,
+      padding: 20,
+      animation: 'fadeIn .15s ease'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4
+    }
+  }, "Share Configuration"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 10
+    }
+  }, "This URL encodes your current settings (no passwords included)."), React.createElement("textarea", {
+    value: url,
+    readOnly: true,
+    rows: 3,
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 10,
+      marginBottom: 8
+    }
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end'
+    }
+  }, React.createElement(Btn, {
+    onClick: onClose
+  }, "Close"), React.createElement(Btn, {
+    onClick: () => {
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    },
+    variant: "primary"
+  }, copied ? '✓ Copied' : 'Copy URL'))));
+}
+async function vaultDeriveKey(password, salt) {
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({
+    name: 'PBKDF2',
+    salt,
+    iterations: 100000,
+    hash: 'SHA-256'
+  }, km, {
+    name: 'AES-GCM',
+    length: 256
+  }, false, ['encrypt', 'decrypt']);
+}
+async function vaultEncrypt(password, data) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await vaultDeriveKey(password, salt);
+  const enc = new TextEncoder();
+  const ct = await crypto.subtle.encrypt({
+    name: 'AES-GCM',
+    iv
+  }, key, enc.encode(JSON.stringify(data)));
+  return {
+    salt: Array.from(salt),
+    iv: Array.from(iv),
+    ct: Array.from(new Uint8Array(ct))
+  };
+}
+async function vaultDecrypt(password, blob) {
+  const key = await vaultDeriveKey(password, new Uint8Array(blob.salt));
+  const pt = await crypto.subtle.decrypt({
+    name: 'AES-GCM',
+    iv: new Uint8Array(blob.iv)
+  }, key, new Uint8Array(blob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+function VaultModal(_ref19) {
+  let {
+    onClose,
+    onUnlock
+  } = _ref19;
+  const [mode, setMode] = React.useState(() => localStorage.getItem('swaps_vault') ? 'unlock' : 'setup');
+  const [pw, setPw] = React.useState('');
+  const [pw2, setPw2] = React.useState('');
+  const [err, setErr] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  async function doSetup() {
+    if (pw.length < 6) {
+      setErr('Password must be at least 6 characters');
+      return;
+    }
+    if (pw !== pw2) {
+      setErr('Passwords do not match');
+      return;
+    }
+    setBusy(true);
+    try {
+      const blob = await vaultEncrypt(pw, {
+        hosts: []
+      });
+      localStorage.setItem('swaps_vault', JSON.stringify(blob));
+      onUnlock({
+        hosts: []
+      }, pw);
+    } catch (e) {
+      setErr('Error: ' + e.message);
+    }
+    setBusy(false);
+  }
+  async function doUnlock() {
+    setBusy(true);
+    setErr('');
+    try {
+      const blob = JSON.parse(localStorage.getItem('swaps_vault') || 'null');
+      if (!blob) {
+        setErr('No vault found');
+        setBusy(false);
+        return;
+      }
+      const data = await vaultDecrypt(pw, blob);
+      onUnlock(data, pw);
+    } catch (e) {
+      setErr('Wrong password or vault corrupted');
+    }
+    setBusy(false);
+  }
+  function clearVault() {
+    if (confirm('Delete vault? This cannot be undone.')) {
+      localStorage.removeItem('swaps_vault');
+      setMode('setup');
+      setPw('');
+      setPw2('');
+    }
+  }
+  return React.createElement("div", {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,.6)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      border: '1px solid var(--bdr)',
+      borderRadius: 12,
+      padding: 24,
+      width: 360,
+      fontFamily: 'var(--sans)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 14,
+      fontWeight: 700,
+      color: 'var(--text)',
+      marginBottom: 4
+    }
+  }, "\uD83D\uDD12 Credential Vault"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      marginBottom: 16
+    }
+  }, mode === 'setup' ? 'Create a master password to encrypt your SSH credentials' : 'Enter master password to unlock stored credentials'), React.createElement("input", {
+    type: "password",
+    value: pw,
+    onChange: e => setPw(e.target.value),
+    placeholder: "Master password",
+    onKeyDown: e => e.key === 'Enter' && (mode === 'setup' ? doSetup() : doUnlock()),
+    style: {
+      width: '100%',
+      marginBottom: 8,
+      fontSize: 12
+    }
+  }), mode === 'setup' && React.createElement("input", {
+    type: "password",
+    value: pw2,
+    onChange: e => setPw2(e.target.value),
+    placeholder: "Confirm password",
+    onKeyDown: e => e.key === 'Enter' && doSetup(),
+    style: {
+      width: '100%',
+      marginBottom: 8,
+      fontSize: 12
+    }
+  }), err && React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--red)',
+      marginBottom: 8
+    }
+  }, err), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      justifyContent: 'flex-end'
+    }
+  }, mode === 'unlock' && React.createElement("button", {
+    onClick: clearVault,
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '6px 0'
+    }
+  }, "Reset vault"), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }), React.createElement("button", {
+    onClick: onClose,
+    style: {
+      fontSize: 12,
+      padding: '6px 12px',
+      borderRadius: 6,
+      border: '1px solid var(--bdr)',
+      background: 'transparent',
+      color: 'var(--dim)',
+      cursor: 'pointer'
+    }
+  }, "Cancel"), React.createElement("button", {
+    onClick: mode === 'setup' ? doSetup : doUnlock,
+    disabled: busy || !pw,
+    style: {
+      fontSize: 12,
+      padding: '6px 12px',
+      borderRadius: 6,
+      border: 'none',
+      background: 'var(--teal)',
+      color: '#fff',
+      cursor: 'pointer',
+      opacity: busy || !pw ? .5 : 1
+    }
+  }, busy ? '...' : mode === 'setup' ? 'Create Vault' : 'Unlock'))));
+}
+function App() {
+  var _UFW_PRESETS$find;
+  const [theme, setTheme] = useState(() => localStorage.getItem('swaps_theme') || 'dark');
+  useEffect(() => {
+    document.documentElement.className = theme === 'light' ? 'light' : '';
+    localStorage.setItem('swaps_theme', theme);
+  }, [theme]);
+  const [hostname, setHostname] = useState('');
+  const [notes, setNotes] = useState('');
+  const [distro, setDistro] = useState({
+    type: 'ubuntu',
+    piModel: 'pi4'
+  });
+  const [leftTab, setLeftTab] = useState('software');
+  const [rightTab, setRightTab] = useState('script');
+  const [scriptView, setScriptView] = useState('sh');
+  const [expanded, setExpanded] = useState({});
+  const togExp = k => setExpanded(p => ({
+    ...p,
+    [k]: !p[k]
+  }));
+  const [sw, setSw] = useState({
+    docker: {
+      enabled: false,
+      config: {
+        compose: true,
+        dockerGroup: true,
+        dockerDir: false
+      }
+    },
+    ncdu: {
+      enabled: false,
+      config: {}
+    },
+    htop: {
+      enabled: false,
+      config: {}
+    },
+    tmux: {
+      enabled: false,
+      config: {}
+    },
+    curl: {
+      enabled: false,
+      config: {}
+    },
+    vim: {
+      enabled: false,
+      config: {}
+    },
+    nmap: {
+      enabled: false,
+      config: {}
+    },
+    rsync: {
+      enabled: false,
+      config: {}
+    },
+    unzip: {
+      enabled: false,
+      config: {}
+    },
+    duf: {
+      enabled: false,
+      config: {}
+    },
+    git: {
+      enabled: false,
+      config: {
+        username: '',
+        email: '',
+        branch: 'main'
+      }
+    },
+    neofetch: {
+      enabled: false,
+      config: {
+        useCustomConfig: true,
+        nfVars: {
+          dockerContainer: '',
+          colour1: '#005FAF',
+          colour2: '#808080',
+          colour3: '#87AFFF',
+          title: 'My Server',
+          url: 'https://example.com',
+          urlText: 'Visit Website'
+        },
+        uploadImage: false,
+        imageData: null,
+        imageName: '',
+        bashrcNeofetch: false
+      }
+    },
+    portainer: {
+      enabled: false,
+      config: {
+        port: '9000'
+      }
+    },
+    wazuh: {
+      enabled: false,
+      config: {
+        managerIP: '',
+        managerPort: '1514'
+      }
+    },
+    netdata: {
+      enabled: false,
+      config: {}
+    },
+    prometheus: {
+      enabled: false,
+      config: {}
+    }
+  });
+  const togSw = k => setSw(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      enabled: !p[k].enabled
+    }
+  }));
+  const updSw = (k, f, v) => setSw(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      config: {
+        ...p[k].config,
+        [f]: v
+      }
+    }
+  }));
+  const [cfg, setCfg] = useState({
+    bashrc: {
+      enabled: false,
+      config: {
+        mode: 'builder',
+        customContent: '',
+        aliases: [{
+          id: 'a1',
+          name: 'll',
+          cmd: 'ls -alF --color=auto'
+        }, {
+          id: 'a2',
+          name: 'la',
+          cmd: 'ls -A --color=auto'
+        }, {
+          id: 'a3',
+          name: 'gs',
+          cmd: 'git status'
+        }, {
+          id: 'a4',
+          name: 'gp',
+          cmd: 'git pull'
+        }, {
+          id: 'a5',
+          name: 'dps',
+          cmd: 'docker ps'
+        }, {
+          id: 'a6',
+          name: 'dcu',
+          cmd: 'docker compose up -d'
+        }, {
+          id: 'a7',
+          name: 'dcd',
+          cmd: 'docker compose down'
+        }],
+        ps1User: '#4ade80',
+        ps1Host: '#60a5fa',
+        ps1Path: '#fb923c',
+        customDir: '',
+        sshMenu: false,
+        sshColour1: '#87D7FF',
+        sshColour2: '#005FAF',
+        sshMenuItems: [{
+          id: 'm1',
+          key: 'S',
+          label: 'System Updates',
+          command: 'sudo apt-get update && sudo apt-get upgrade -y'
+        }, {
+          id: 'm2',
+          key: 'N',
+          label: 'Nothing',
+          command: ''
+        }]
+      }
+    },
+    sshKeys: {
+      enabled: false,
+      config: {
+        keys: [{
+          id: 'k1',
+          label: '',
+          key: ''
+        }]
+      }
+    },
+    envVars: {
+      enabled: false,
+      config: {
+        vars: [{
+          id: 'v1',
+          key: '',
+          value: ''
+        }]
+      }
+    },
+    vimrc: {
+      enabled: false,
+      config: {
+        content: 'set number\nset tabstop=2\nset shiftwidth=2\nset expandtab\nset autoindent\nsyntax on\ncolorscheme desert'
+      }
+    },
+    tmuxConf: {
+      enabled: false,
+      config: {
+        content: 'set -g mouse on\nset -g history-limit 50000\nset -g base-index 1\nbind | split-window -h\nbind - split-window -v'
+      }
+    },
+    gitconfig: {
+      enabled: false,
+      config: {
+        name: '',
+        email: '',
+        editor: 'vim'
+      }
+    }
+  });
+  const togCfg = k => setCfg(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      enabled: !p[k].enabled
+    }
+  }));
+  const updCfg = (k, f, v) => setCfg(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      config: {
+        ...p[k].config,
+        [f]: v
+      }
+    }
+  }));
+  const [sec, setSec] = useState({
+    sshHardening: {
+      enabled: false,
+      config: {
+        disablePasswordAuth: false,
+        disableRoot: false,
+        port: '22',
+        disableX11: true
+      }
+    },
+    ufw: {
+      enabled: false,
+      config: {
+        preset: 'ssh-only',
+        customRules: []
+      }
+    },
+    fail2ban: {
+      enabled: false,
+      config: {
+        sshEnabled: true,
+        maxRetry: 5,
+        banTime: '1h',
+        findTime: '10m'
+      }
+    }
+  });
+  const togSec = k => setSec(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      enabled: !p[k].enabled
+    }
+  }));
+  const updSec = (k, f, v) => setSec(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      config: {
+        ...p[k].config,
+        [f]: v
+      }
+    }
+  }));
+  const [infra, setInfra] = useState({
+    aptRepos: {
+      enabled: false,
+      config: {
+        repos: [{
+          id: 'r1',
+          label: '',
+          id_: '',
+          gpgUrl: '',
+          line: ''
+        }]
+      }
+    },
+    cronJobs: {
+      enabled: false,
+      config: {
+        jobs: [{
+          id: 'c1',
+          label: '',
+          schedule: '0 2 * * *',
+          command: ''
+        }]
+      }
+    },
+    portainerStack: {
+      enabled: false,
+      config: {
+        compose: 'version: "3.9"\nservices:\n  myapp:\n    image: nginx\n    ports:\n      - "8080:80"'
+      }
+    },
+    dnsEntries: {
+      enabled: false,
+      config: {
+        entries: [{
+          id: 'd1',
+          ip: '',
+          hostname: ''
+        }]
+      }
+    }
+  });
+  const togInfra = k => setInfra(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      enabled: !p[k].enabled
+    }
+  }));
+  const clearAll = () => {
+    setSw(p => Object.fromEntries(Object.entries(p).map(_ref20 => {
+      let [k, v] = _ref20;
+      return [k, {
+        ...v,
+        enabled: false
+      }];
+    })));
+    setCfg(p => Object.fromEntries(Object.entries(p).map(_ref21 => {
+      let [k, v] = _ref21;
+      return [k, {
+        ...v,
+        enabled: false
+      }];
+    })));
+    setSec(p => Object.fromEntries(Object.entries(p).map(_ref22 => {
+      let [k, v] = _ref22;
+      return [k, {
+        ...v,
+        enabled: false
+      }];
+    })));
+    setInfra(p => Object.fromEntries(Object.entries(p).map(_ref23 => {
+      let [k, v] = _ref23;
+      return [k, {
+        ...v,
+        enabled: false
+      }];
+    })));
+    setCustom([]);
+  };
+  const updInfra = (k, f, v) => setInfra(p => ({
+    ...p,
+    [k]: {
+      ...p[k],
+      config: {
+        ...p[k].config,
+        [f]: v
+      }
+    }
+  }));
+  const [custom, setCustom] = useState([]);
+  const [templates, setTemplates] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('swaps_templates') || 'null') || SEED_TEMPLATES;
+    } catch {
+      return SEED_TEMPLATES;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('swaps_templates', JSON.stringify(templates));
+    } catch {}
+  }, [templates]);
+  const [editingTpl, setEditingTpl] = useState(null);
+  const [usingTpl, setUsingTpl] = useState(null);
+  const [profiles, setProfiles] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('swaps_profiles') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('swaps_profiles', JSON.stringify(profiles));
+    } catch {}
+  }, [profiles]);
+  const [showProfileSave, setShowProfileSave] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
+  const [hosts, setHosts] = useState([{
+    id: 'h1',
+    host: '',
+    port: '22',
+    username: 'root',
+    authType: 'password',
+    password: '',
+    privateKey: '',
+    sudoPassword: '',
+    sudoSameAsSSH: true
+  }]);
+  const [activeHostIdx, setActiveHostIdx] = useState(0);
+  const [terminals, setTerminals] = useState([{
+    status: 'idle',
+    lines: [],
+    sudoPrompt: false
+  }]);
+  const wsRefs = useRef([]);
+  const [history, setHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('swaps_history') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('swaps_history', JSON.stringify(history.slice(0, 50)));
+    } catch {}
+  }, [history]);
+  const [showImport, setShowImport] = useState(false);
+  const [showVault, setShowVault] = useState(false);
+  const [vaultData, setVaultData] = useState(null);
+  const [vaultPw, setVaultPw] = useState('');
+  const vaultLocked = !vaultData;
+  function onVaultUnlock(data, pw) {
+    setVaultData(data);
+    setVaultPw(pw);
+    setShowVault(false);
+  }
+  async function saveHostToVault(idx) {
+    if (!vaultData || !vaultPw) return;
+    const h = hosts[idx];
+    const entry = {
+      host: h.host,
+      port: h.port,
+      username: h.username,
+      password: h.password,
+      privateKey: h.privateKey,
+      sudoPassword: h.sudoPassword,
+      authType: h.authType,
+      sudoSameAsSSH: h.sudoSameAsSSH
+    };
+    const existing = (vaultData.hosts || []).filter(v => v.host !== h.host);
+    const newData = {
+      ...vaultData,
+      hosts: [entry, ...existing]
+    };
+    try {
+      const blob = await vaultEncrypt(vaultPw, newData);
+      localStorage.setItem('swaps_vault', JSON.stringify(blob));
+      setVaultData(newData);
+    } catch (e) {
+      alert('Vault save failed: ' + e.message);
+    }
+  }
+  function loadHostFromVault(idx) {
+    var _vaultData$hosts;
+    if (!vaultData) return;
+    const h = hosts[idx];
+    const entry = (vaultData.hosts || []).find(v => v.host === h.host) || ((_vaultData$hosts = vaultData.hosts) === null || _vaultData$hosts === void 0 ? void 0 : _vaultData$hosts[0]);
+    if (!entry) return;
+    setHosts(p => p.map((hh, i) => i === idx ? {
+      ...hh,
+      ...entry
+    } : hh));
+  }
+  const [showShare, setShowShare] = useState(false);
+  const [verifyResults, setVerifyResults] = useState(null);
+  const [shareUrl, setShareUrl] = useState('');
+  const [prevScript, setPrevScript] = useState('');
+  const dryRunState = {
+    sw,
+    cfg,
+    sec,
+    infra,
+    custom,
+    hostname,
+    distro,
+    dryRun
+  };
+  const script = useMemo(() => generateScript(dryRunState), [sw, cfg, sec, infra, custom, hostname, distro, dryRun]);
+  const rollback = useMemo(() => generateRollback({
+    sw,
+    cfg,
+    sec,
+    infra,
+    hostname
+  }), [sw, cfg, sec, infra, hostname]);
+  const ansible = useMemo(() => generateAnsible({
+    sw,
+    cfg,
+    sec,
+    infra,
+    hostname
+  }), [sw, cfg, sec, infra, hostname]);
+  const hlScript = useMemo(() => hlBash(script), [script]);
+  const hlRollback = useMemo(() => hlBash(rollback), [rollback]);
+  const hlAnsibleText = useMemo(() => hlAnsible(ansible), [ansible]);
+  const curlScript = useMemo(() => {
+    const encoded = btoa(unescape(encodeURIComponent(script)));
+    return `# Option 1: Download and run\ncurl -fsSL http://YOUR_HOST:8080/script.sh | bash\n\n# Option 2: Pipe script directly\necho '${encoded.substring(0, 40)}...' | base64 -d | bash`;
+  }, [script]);
+  const diffHtml = useMemo(() => prevScript ? diffScripts(prevScript, script) : '', [prevScript, script]);
+  const progressSections = useMemo(() => (script.match(/^# ─/gm) || []).length, [script]);
+  const enabledCount = [...Object.values(sw), ...Object.values(cfg), ...Object.values(sec), ...Object.values(infra)].filter(v => v.enabled).length + custom.length;
+  const lbl = function (t) {
+    let s = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+    return React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--dim)',
+        textTransform: 'uppercase',
+        letterSpacing: '.07em',
+        fontFamily: 'var(--sans)',
+        marginBottom: 4,
+        ...s
+      }
+    }, t);
+  };
+  function deployHost(idx) {
+    const host = hosts[idx];
+    if (wsRefs.current[idx]) try {
+      wsRefs.current[idx].close();
+    } catch {}
+    setTerminals(p => {
+      const t = [...p];
+      t[idx] = {
+        status: 'connecting',
+        lines: [],
+        sudoPrompt: false
+      };
+      return t;
+    });
+    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    wsRefs.current[idx] = ws;
+    const eff = host.sudoSameAsSSH ? host.password : host.sudoPassword;
+    ws.onopen = () => ws.send(JSON.stringify({
+      type: 'deploy',
+      host: host.host,
+      port: +host.port,
+      username: host.username,
+      password: host.authType === 'password' ? host.password : undefined,
+      privateKey: host.authType === 'key' ? host.privateKey : undefined,
+      sudoPassword: eff || undefined,
+      script,
+      dryRun
+    }));
+    ws.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (['stdout', 'stderr', 'log'].includes(msg.type)) {
+        const nl = msg.data.split(/\r?\n/).filter(l => l.length).map(l => ({
+          text: l,
+          type: msg.type
+        }));
+        setTerminals(p => {
+          const t = [...p];
+          t[idx] = {
+            ...t[idx],
+            status: 'running',
+            lines: [...t[idx].lines, ...nl].slice(-3000)
+          };
+          return t;
+        });
+      }
+      if (msg.type === 'sudoPrompt') setTerminals(p => {
+        const t = [...p];
+        t[idx] = {
+          ...t[idx],
+          sudoPrompt: true
+        };
+        return t;
+      });
+      if (msg.type === 'done') {
+        const ok = msg.data.code === 0;
+        setTerminals(p => {
+          const t = [...p];
+          t[idx] = {
+            ...t[idx],
+            status: ok ? 'success' : 'error',
+            sudoPrompt: false
+          };
+          return t;
+        });
+        if (ok) {
+          const entry = {
+            id: uid(),
+            at: new Date().toISOString(),
+            host: host.host,
+            hostname,
+            pkgs: Object.keys(sw).filter(k => sw[k].enabled),
+            dryRun
+          };
+          setHistory(p => [entry, ...p]);
+          if (!dryRun) verifyDeploy(idx, host);
+        }
+      }
+      if (msg.type === 'error') setTerminals(p => {
+        const t = [...p];
+        t[idx] = {
+          ...t[idx],
+          status: 'error',
+          sudoPrompt: false,
+          lines: [...t[idx].lines, {
+            text: msg.data,
+            type: 'stderr'
+          }]
+        };
+        return t;
+      });
+      if (msg.type === 'verifyResults') setVerifyResults(msg.data);
+      if (msg.type === 'importResults') applyImport(msg.data);
+    };
+    ws.onclose = () => setTerminals(p => {
+      const t = [...p];
+      if (t[idx].status === 'running') t[idx] = {
+        ...t[idx],
+        status: 'disconnected'
+      };
+      return t;
+    });
+  }
+  function sendInput(idx, data) {
+    const ws = wsRefs.current[idx];
+    if ((ws === null || ws === void 0 ? void 0 : ws.readyState) === 1) ws.send(JSON.stringify({
+      type: 'input',
+      data
+    }));
+  }
+  function abortHost(idx) {
+    const ws = wsRefs.current[idx];
+    if ((ws === null || ws === void 0 ? void 0 : ws.readyState) === 1) ws.send(JSON.stringify({
+      type: 'abort'
+    }));
+  }
+  function verifyDeploy(idx, host) {
+    const checks = {};
+    const pkgMap = {
+      docker: 'command -v docker',
+      git: 'command -v git',
+      ncdu: 'command -v ncdu',
+      htop: 'command -v htop',
+      tmux: 'command -v tmux',
+      neofetch: 'command -v neofetch',
+      curl: 'command -v curl',
+      vim: 'command -v vim',
+      duf: 'command -v duf',
+      ufw: 'command -v ufw',
+      fail2ban: 'command -v fail2ban-client',
+      netdata: 'command -v netdata'
+    };
+    Object.keys(sw).filter(k => sw[k].enabled && pkgMap[k]).forEach(k => {
+      checks[k] = pkgMap[k];
+    });
+    if (Object.keys(checks).length === 0) return;
+    const ws = wsRefs.current[idx];
+    if ((ws === null || ws === void 0 ? void 0 : ws.readyState) === 1) ws.send(JSON.stringify({
+      type: 'verify',
+      host: host.host,
+      port: +host.port,
+      username: host.username,
+      password: host.password,
+      checks
+    }));
+  }
+  function importFromHost(creds) {
+    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    ws.onopen = () => ws.send(JSON.stringify({
+      type: 'import',
+      ...creds
+    }));
+    ws.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'importResults') {
+        applyImport(msg.data);
+        ws.close();
+      }
+      if (msg.type === 'error') {
+        alert('Import error: ' + msg.data);
+        ws.close();
+      }
+    };
+  }
+  function applyImport(detected) {
+    setShowImport(false);
+    if (detected._hostname) setHostname(detected._hostname);
+    setSw(p => {
+      const n = {
+        ...p
+      };
+      ['docker', 'git', 'ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'netdata'].forEach(k => {
+        if (detected[k] !== undefined && n[k]) n[k] = {
+          ...n[k],
+          enabled: detected[k]
+        };
+      });
+      return n;
+    });
+    setSec(p => {
+      const n = {
+        ...p
+      };
+      if (detected.ufw) n.ufw = {
+        ...n.ufw,
+        enabled: true
+      };
+      if (detected.fail2ban) n.fail2ban = {
+        ...n.fail2ban,
+        enabled: true
+      };
+      return n;
+    });
+    alert(`Import complete! Detected: ${Object.keys(detected).filter(k => detected[k] === true).join(', ')}`);
+  }
+  function saveProfile(name) {
+    const prof = {
+      id: uid(),
+      name,
+      at: new Date().toISOString(),
+      hostname,
+      notes,
+      distro,
+      sw,
+      cfg,
+      sec,
+      infra,
+      custom
+    };
+    setProfiles(p => [prof, ...p]);
+    setShowProfileSave(false);
+  }
+  function loadProfile(prof) {
+    if (prof.hostname) setHostname(prof.hostname);
+    if (prof.notes) setNotes(prof.notes);
+    if (prof.distro) setDistro(prof.distro);
+    if (prof.sw) setSw(prof.sw);
+    if (prof.cfg) setCfg(prof.cfg);
+    if (prof.sec) setSec(prof.sec);
+    if (prof.infra) setInfra(prof.infra);
+    if (prof.custom) setCustom(prof.custom);
+  }
+  function openShare() {
+    const encoded = encodeConfig({
+      hostname,
+      distro,
+      sw,
+      cfg,
+      sec,
+      infra
+    });
+    setShareUrl(window.location.origin + window.location.pathname + '#config=' + encoded);
+    setShowShare(true);
+  }
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('config=')) {
+      const encoded = hash.split('config=')[1];
+      const state = decodeConfig(encoded);
+      if (state) loadProfile(state);
+    }
+  }, []);
+  function addHost() {
+    setHosts(p => [...p, {
+      id: uid(),
+      host: '',
+      port: '22',
+      username: 'root',
+      authType: 'password',
+      password: '',
+      privateKey: '',
+      sudoPassword: '',
+      sudoSameAsSSH: true
+    }]);
+    setTerminals(p => [...p, {
+      status: 'idle',
+      lines: [],
+      sudoPrompt: false
+    }]);
+    setActiveHostIdx(hosts.length);
+  }
+  function removeHost(idx) {
+    if (hosts.length === 1) return;
+    setHosts(p => p.filter((_, i) => i !== idx));
+    setTerminals(p => p.filter((_, i) => i !== idx));
+    setActiveHostIdx(0);
+  }
+  function updHost(idx, k, v) {
+    setHosts(p => p.map((h, i) => i === idx ? {
+      ...h,
+      [k]: v
+    } : h));
+  }
+  function applyTemplate(content) {
+    setCfg(p => ({
+      ...p,
+      bashrc: {
+        ...p.bashrc,
+        enabled: true,
+        config: {
+          ...p.bashrc.config,
+          mode: 'custom',
+          customContent: content
+        }
+      }
+    }));
+    setUsingTpl(null);
+    setLeftTab('config');
+    setExpanded(p => ({
+      ...p,
+      bashrc: true
+    }));
+  }
+  const copyText = (t, id) => {
+    navigator.clipboard.writeText(t).then(() => {
+      setCopied(id);
+      setTimeout(() => setCopied(''), 2000);
+    });
+  };
+  const [copied, setCopied] = useState('');
+  const dlScript_ = (content, name) => {
+    const b = new Blob([content], {
+      type: 'text/plain'
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = name;
+    a.click();
+  };
+  const TABS = [['software', '⬡', 'Software'], ['config', '≡', 'Config'], ['security', '◉', 'Security'], ['infra', '⊛', 'Infra'], ['profiles', '⊞', 'Profiles'], ['custom', '+', 'Custom']];
+  const RIGHT_TABS = [['script', 'Script'], ['deploy', 'Deploy'], ['history', 'History']];
+  const curHost = hosts[activeHostIdx] || hosts[0];
+  const curTerm = terminals[activeHostIdx] || terminals[0];
+  const isRunning = curTerm.status === 'connecting' || curTerm.status === 'running';
+  const canDeploy = !isRunning && curHost.host && curHost.username;
+  const effSudo = curHost.sudoSameAsSSH ? curHost.password : curHost.sudoPassword;
+  return React.createElement(React.Fragment, null, editingTpl && React.createElement(TemplateEditModal, {
+    template: editingTpl.id ? editingTpl : null,
+    onSave: tpl => {
+      setTemplates(p => editingTpl.id ? p.map(t => t.id === tpl.id ? tpl : t) : [...p, tpl]);
+      setEditingTpl(null);
+    },
+    onClose: () => setEditingTpl(null)
+  }), usingTpl && React.createElement(TemplateUseModal, {
+    template: usingTpl,
+    onApply: applyTemplate,
+    onClose: () => setUsingTpl(null)
+  }), showProfileSave && React.createElement(ProfileModal, {
+    onSave: saveProfile,
+    onClose: () => setShowProfileSave(false)
+  }), showVault && React.createElement(VaultModal, {
+    onClose: () => setShowVault(false),
+    onUnlock: onVaultUnlock
+  }), showImport && React.createElement(ImportModal, {
+    onImport: importFromHost,
+    onClose: () => setShowImport(false)
+  }), showShare && React.createElement(ShareModal, {
+    url: shareUrl,
+    onClose: () => setShowShare(false)
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      background: 'var(--bg)',
+      overflow: 'hidden'
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      borderBottom: '1px solid var(--bdr)',
+      padding: '12px 18px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 14,
+      flexShrink: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      flexShrink: 0,
+      width: 482
+    }
+  }, React.createElement("img", {
+    src: "/logo.png",
+    style: {
+      width: 52,
+      height: 52,
+      borderRadius: 12,
+      objectFit: "cover"
+    }
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 2
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 26,
+      fontWeight: 700,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      letterSpacing: '-0.04em'
+    }
+  }, "SWAPS"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      letterSpacing: '0.01em'
+    }
+  }, React.createElement("strong", null, "SWAKES"), " Automated Provisioning System"))), React.createElement("div", {
+    style: {
+      flex: 1,
+      display: 'flex',
+      gap: 10,
+      alignItems: 'center'
+    }
+  }, React.createElement("select", {
+    value: distro.type,
+    onChange: e => setDistro(p => ({
+      ...p,
+      type: e.target.value
+    })),
+    style: {
+      width: 140,
+      fontSize: 12
+    }
+  }, React.createElement("option", {
+    value: "ubuntu"
+  }, "Ubuntu (amd64)"), React.createElement("option", {
+    value: "raspbian"
+  }, "Raspberry Pi OS")), distro.type === 'raspbian' && React.createElement("select", {
+    value: distro.piModel,
+    onChange: e => setDistro(p => ({
+      ...p,
+      piModel: e.target.value
+    })),
+    style: {
+      width: 120,
+      fontSize: 12
+    }
+  }, PI_MODELS.map(m => React.createElement("option", {
+    key: m.id,
+    value: m.id
+  }, m.label))), React.createElement("div", {
+    style: {
+      width: 1,
+      height: 20,
+      background: 'var(--bdr)',
+      flexShrink: 0
+    }
+  }), React.createElement("label", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      flexShrink: 0
+    }
+  }, "Host"), React.createElement("input", {
+    value: hostname,
+    onChange: e => setHostname(e.target.value),
+    placeholder: "my-server",
+    style: {
+      width: 140,
+      fontSize: 12
+    }
+  }), React.createElement("input", {
+    value: notes,
+    onChange: e => setNotes(e.target.value),
+    placeholder: "Notes / changelog\u2026",
+    style: {
+      width: 180,
+      fontSize: 11
+    },
+    className: "hide-mobile"
+  })), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center',
+      flexShrink: 0
+    }
+  }, React.createElement(Btn, {
+    onClick: () => setShowImport(true),
+    style: {
+      fontSize: 12,
+      padding: '6px 13px'
+    },
+    title: "Import from host"
+  }, "\u2193 Import"), React.createElement(Btn, {
+    onClick: openShare,
+    style: {
+      fontSize: 12,
+      padding: '6px 13px'
+    },
+    title: "Share config"
+  }, "\u21C4 Share"), React.createElement(Btn, {
+    onClick: () => setTheme(t => t === 'dark' ? 'light' : 'dark'),
+    style: {
+      fontSize: 15,
+      padding: '6px 11px'
+    },
+    title: "Toggle theme"
+  }, theme === 'dark' ? '☀' : '🌙'), React.createElement(Btn, {
+    onClick: () => setShowVault(true),
+    style: {
+      fontSize: 14,
+      padding: '6px 11px',
+      opacity: vaultLocked ? 1 : .6
+    },
+    title: vaultLocked ? 'Unlock credential vault' : 'Vault unlocked'
+  }, vaultLocked ? '🔒' : '🔓'), (curTerm.status === 'success' || curTerm.status === 'error') && verifyResults && React.createElement(Btn, {
+    onClick: () => setRightTab('deploy'),
+    variant: "blue",
+    style: {
+      fontSize: 11,
+      padding: '4px 10px'
+    }
+  }, "\u229E Verify Results"))), React.createElement("div", {
+    style: {
+      flex: 1,
+      display: 'flex',
+      overflow: 'hidden'
+    }
+  }, React.createElement("div", {
+    style: {
+      width: 62,
+      flexShrink: 0,
+      background: 'var(--surf)',
+      borderRight: '1px solid var(--bdr)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      paddingTop: 8,
+      gap: 4
+    },
+    className: "hide-mobile"
+  }, TABS.map(_ref24 => {
+    let [k, icon, lbl_] = _ref24;
+    return React.createElement("div", {
+      key: k,
+      onClick: () => setLeftTab(k),
+      title: lbl_,
+      style: {
+        width: 50,
+        height: 50,
+        borderRadius: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        background: leftTab === k ? 'var(--tealDim)' : 'transparent',
+        color: leftTab === k ? 'var(--teal)' : 'var(--dim)',
+        transition: 'all .15s',
+        fontSize: 18,
+        boxShadow: leftTab === k ? 'rgba(0,0,0,0.09) 0px 2px 1px, rgba(0,0,0,0.09) 0px 4px 2px, rgba(0,0,0,0.09) 0px 8px 4px, rgba(0,0,0,0.09) 0px 16px 8px, rgba(0,0,0,0.09) 0px 32px 16px' : 'none'
+      }
+    }, icon);
+  })), React.createElement("div", {
+    style: {
+      width: 440,
+      flexShrink: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      background: 'var(--surf)',
+      borderRight: '1px solid var(--bdr)',
+      overflow: 'hidden'
+    },
+    className: "full-mobile"
+  }, React.createElement("div", {
+    style: {
+      padding: '10px 16px 8px',
+      borderBottom: '1px solid var(--bdr)',
+      flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      textTransform: 'capitalize'
+    }
+  }, leftTab), leftTab === 'software' && React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 5
+    }
+  }, PACKAGE_GROUPS.map(g => React.createElement("button", {
+    key: g.id,
+    onClick: () => {
+      setSw(p => {
+        const n = {
+          ...p
+        };
+        g.pkgs.forEach(pk => {
+          if (n[pk]) n[pk] = {
+            ...n[pk],
+            enabled: true
+          };
+        });
+        return n;
+      });
+    },
+    title: `Apply group: ${g.label}`,
+    style: {
+      fontSize: 16,
+      padding: '6px 10px',
+      borderRadius: 7,
+      border: '1px solid var(--bdr)',
+      background: 'transparent',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      lineHeight: 1,
+      transition: 'all .15s'
+    }
+  }, g.icon)), React.createElement("button", {
+    onClick: clearAll,
+    title: "Clear all selections",
+    style: {
+      fontSize: 11,
+      padding: '4px 9px',
+      borderRadius: 6,
+      border: '1px solid var(--bdr)',
+      background: 'transparent',
+      cursor: 'pointer',
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)',
+      marginLeft: 2,
+      transition: 'all .15s'
+    }
+  }, "\u2715 Clear")), leftTab === 'profiles' && React.createElement(Btn, {
+    onClick: () => setShowProfileSave(true),
+    variant: "primary",
+    style: {
+      fontSize: 11,
+      padding: '2px 8px'
+    }
+  }, "+ Save")), React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto'
+    }
+  }, leftTab === 'software' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+    key: "curl",
+    label: "curl",
+    desc: "HTTP client",
+    icon: "\u25C8",
+    on: sw.curl.enabled,
+    onToggle: () => togSw('curl'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "Docker & Docker Compose",
+    desc: "Container runtime + compose",
+    icon: "\u2B21",
+    on: sw.docker.enabled,
+    onToggle: () => togSw('docker'),
+    expanded: expanded.docker,
+    onExpand: () => togExp('docker')
+  }, React.createElement(Check, {
+    label: "Install Docker Compose plugin",
+    checked: sw.docker.config.compose,
+    onChange: () => updSw('docker', 'compose', !sw.docker.config.compose)
+  }), React.createElement(Check, {
+    label: "Add user to docker group",
+    checked: sw.docker.config.dockerGroup,
+    onChange: () => updSw('docker', 'dockerGroup', !sw.docker.config.dockerGroup)
+  }), React.createElement(Check, {
+    label: "Create ~/docker directory",
+    checked: sw.docker.config.dockerDir,
+    onChange: () => updSw('docker', 'dockerDir', !sw.docker.config.dockerDir)
+  })), React.createElement(SwItem, {
+    key: "duf",
+    label: "duf",
+    desc: "Pretty disk usage (df)",
+    icon: "\u25C8",
+    on: sw.duf.enabled,
+    onToggle: () => togSw('duf'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "Git",
+    desc: "Distributed version control",
+    icon: "\u2442",
+    on: sw.git.enabled,
+    onToggle: () => togSw('git'),
+    expanded: expanded.git,
+    onExpand: () => togExp('git')
+  }, React.createElement(Inp, {
+    label: "Username",
+    value: sw.git.config.username,
+    onChange: v => updSw('git', 'username', v),
+    placeholder: "John Doe"
+  }), React.createElement(Inp, {
+    label: "Email",
+    value: sw.git.config.email,
+    onChange: v => updSw('git', 'email', v),
+    placeholder: "john@example.com"
+  }), React.createElement(Inp, {
+    label: "Default branch",
+    value: sw.git.config.branch,
+    onChange: v => updSw('git', 'branch', v),
+    placeholder: "main"
+  })), React.createElement(SwItem, {
+    key: "htop",
+    label: "htop",
+    desc: "Interactive process viewer",
+    icon: "\u25C8",
+    on: sw.htop.enabled,
+    onToggle: () => togSw('htop'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    key: "ncdu",
+    label: "ncdu",
+    desc: "NCurses disk usage analyser",
+    icon: "\u25C8",
+    on: sw.ncdu.enabled,
+    onToggle: () => togSw('ncdu'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "Neofetch",
+    desc: "System info with custom config + image",
+    icon: "\u25ED",
+    on: sw.neofetch.enabled,
+    onToggle: () => togSw('neofetch'),
+    expanded: expanded.neofetch,
+    onExpand: () => togExp('neofetch')
+  }, React.createElement(NeofetchOptions, {
+    cfg: sw.neofetch.config,
+    updSw: updSw,
+    lbl: lbl
+  })), React.createElement(SwItem, {
+    label: "Netdata",
+    desc: "Real-time performance monitoring",
+    icon: "\u25C8",
+    on: sw.netdata.enabled,
+    onToggle: () => togSw('netdata'),
+    expanded: false,
+    badge: {
+      color: 'green',
+      label: 'monitoring'
+    }
+  }), React.createElement(SwItem, {
+    key: "nmap",
+    label: "nmap",
+    desc: "Network scanner",
+    icon: "\u25C8",
+    on: sw.nmap.enabled,
+    onToggle: () => togSw('nmap'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "Portainer CE",
+    desc: "Docker web management UI",
+    icon: "\u229B",
+    on: sw.portainer.enabled,
+    onToggle: () => togSw('portainer'),
+    expanded: expanded.portainer,
+    onExpand: () => togExp('portainer')
+  }, React.createElement(Inp, {
+    label: "Host port",
+    value: sw.portainer.config.port,
+    onChange: v => updSw('portainer', 'port', v),
+    placeholder: "9000"
+  })), React.createElement(SwItem, {
+    label: "Prometheus Node Exporter",
+    desc: "Metrics exporter for Prometheus/Grafana",
+    icon: "\u25C8",
+    on: sw.prometheus.enabled,
+    onToggle: () => togSw('prometheus'),
+    expanded: false,
+    badge: {
+      color: 'blue',
+      label: 'metrics'
+    }
+  }), React.createElement(SwItem, {
+    key: "rsync",
+    label: "rsync",
+    desc: "Fast file sync/transfer",
+    icon: "\u25C8",
+    on: sw.rsync.enabled,
+    onToggle: () => togSw('rsync'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    key: "tmux",
+    label: "tmux",
+    desc: "Terminal multiplexer",
+    icon: "\u25C8",
+    on: sw.tmux.enabled,
+    onToggle: () => togSw('tmux'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    key: "unzip",
+    label: "unzip",
+    desc: "Archive extractor",
+    icon: "\u25C8",
+    on: sw.unzip.enabled,
+    onToggle: () => togSw('unzip'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    key: "vim",
+    label: "vim",
+    desc: "Vi IMproved text editor",
+    icon: "\u25C8",
+    on: sw.vim.enabled,
+    onToggle: () => togSw('vim'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "Wazuh Agent",
+    desc: "Security monitoring + SIEM",
+    icon: "\u25C9",
+    on: sw.wazuh.enabled,
+    onToggle: () => togSw('wazuh'),
+    expanded: expanded.wazuh,
+    onExpand: () => togExp('wazuh')
+  }, React.createElement(Inp, {
+    label: "Manager IP",
+    value: sw.wazuh.config.managerIP,
+    onChange: v => updSw('wazuh', 'managerIP', v),
+    placeholder: "10.0.0.1"
+  }), React.createElement(Inp, {
+    label: "Manager Port",
+    value: sw.wazuh.config.managerPort,
+    onChange: v => updSw('wazuh', 'managerPort', v),
+    placeholder: "1514"
+  }))), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+    label: ".bashrc Config",
+    desc: "Aliases \xB7 PS1 \xB7 SSH Menu",
+    icon: "\u2261",
+    on: cfg.bashrc.enabled,
+    onToggle: () => togCfg('bashrc'),
+    expanded: expanded.bashrc,
+    onExpand: () => togExp('bashrc')
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 5,
+      marginBottom: 10
+    }
+  }, [['builder', 'Builder'], ['custom', 'Custom/Template']].map(_ref25 => {
+    let [v, l] = _ref25;
+    return React.createElement("button", {
+      key: v,
+      onClick: () => updCfg('bashrc', 'mode', v),
+      style: {
+        flex: 1,
+        padding: '4px 0',
+        fontSize: 11,
+        borderRadius: 5,
+        border: `1px solid ${cfg.bashrc.config.mode === v ? 'var(--teal)' : 'var(--bdr)'}`,
+        background: cfg.bashrc.config.mode === v ? 'var(--tealDim)' : 'transparent',
+        color: cfg.bashrc.config.mode === v ? 'var(--teal)' : 'var(--dim)',
+        cursor: 'pointer',
+        fontFamily: 'var(--sans)',
+        fontWeight: cfg.bashrc.config.mode === v ? 600 : 400
+      }
+    }, l);
+  })), cfg.bashrc.config.mode === 'custom' ? React.createElement("div", null, React.createElement("div", {
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 6,
+      border: '1px solid var(--bdr)',
+      marginBottom: 8,
+      overflow: 'hidden'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '6px 10px',
+      borderBottom: '1px solid var(--bdr)'
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "Templates (", templates.length, ")"), React.createElement(Btn, {
+    onClick: () => setEditingTpl({}),
+    variant: "ghost",
+    style: {
+      fontSize: 11,
+      padding: '1px 7px'
+    }
+  }, "+ New")), templates.map(t => {
+    const tvars = extractVars(t.content);
+    return React.createElement("div", {
+      key: t.id,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '4px 10px',
+        borderBottom: '1px solid var(--bdr)'
+      }
+    }, React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, React.createElement("div", {
+      style: {
+        fontSize: 12,
+        color: 'var(--text)',
+        fontFamily: 'var(--sans)',
+        fontWeight: 500,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }
+    }, t.name), React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--dim)',
+        fontFamily: 'var(--mono)'
+      }
+    }, tvars.length, " vars", tvars.length > 0 ? ': ' + tvars.slice(0, 3).map(v => `{{${v}}}`).join(' ') : '')), React.createElement(Btn, {
+      onClick: () => setEditingTpl(t),
+      variant: "ghost",
+      style: {
+        padding: '1px 6px',
+        fontSize: 11
+      }
+    }, "Edit"), React.createElement(Btn, {
+      onClick: () => setUsingTpl(t),
+      variant: "primary",
+      style: {
+        padding: '1px 6px',
+        fontSize: 11
+      }
+    }, "Use"), React.createElement(Btn, {
+      onClick: () => {
+        if (confirm('Delete?')) setTemplates(p => p.filter(x => x.id !== t.id));
+      },
+      variant: "ghost",
+      style: {
+        padding: '1px 5px',
+        fontSize: 12,
+        color: 'var(--faint)'
+      }
+    }, "\xD7"));
+  })), lbl('.bashrc content to append'), React.createElement("textarea", {
+    value: cfg.bashrc.config.customContent,
+    onChange: e => updCfg('bashrc', 'customContent', e.target.value),
+    rows: 8,
+    placeholder: "# Paste or Use a template above",
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 11
+    }
+  })) : React.createElement(React.Fragment, null, React.createElement(LabelledBox, {
+    label: "Aliases",
+    action: React.createElement(Btn, {
+      onClick: () => updCfg('bashrc', 'aliases', [...cfg.bashrc.config.aliases, {
+        id: uid(),
+        name: '',
+        cmd: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, cfg.bashrc.config.aliases.map((a, i) => React.createElement("div", {
+    key: a.id,
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: a.name,
+    onChange: e => {
+      const u = [...cfg.bashrc.config.aliases];
+      u[i] = {
+        ...a,
+        name: e.target.value
+      };
+      updCfg('bashrc', 'aliases', u);
+    },
+    placeholder: "name",
+    style: {
+      width: 68,
+      fontSize: 11
+    }
+  }), React.createElement("span", {
+    style: {
+      color: 'var(--faint)',
+      fontSize: 11,
+      flexShrink: 0
+    }
+  }, "="), React.createElement("input", {
+    value: a.cmd,
+    onChange: e => {
+      const u = [...cfg.bashrc.config.aliases];
+      u[i] = {
+        ...a,
+        cmd: e.target.value
+      };
+      updCfg('bashrc', 'aliases', u);
+    },
+    placeholder: "command",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement("button", {
+    onClick: () => updCfg('bashrc', 'aliases', cfg.bashrc.config.aliases.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px',
+      lineHeight: 1
+    }
+  }, "\xD7")))), React.createElement(LabelledBox, {
+    label: "PS1 Prompt Colours"
+  }, React.createElement(PS1Preview, {
+    cfg: cfg.bashrc.config,
+    hostname: hostname
+  }), React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr 1fr',
+      gap: 8
+    }
+  }, [['ps1User', 'User'], ['ps1Host', 'Host'], ['ps1Path', 'Path']].map(_ref26 => {
+    let [k, l] = _ref26;
+    return React.createElement("div", {
+      key: k
+    }, React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--dim)',
+        marginBottom: 3,
+        fontFamily: 'var(--sans)'
+      }
+    }, l), React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 4,
+        alignItems: 'center'
+      }
+    }, React.createElement("input", {
+      type: "color",
+      value: cfg.bashrc.config[k],
+      onChange: e => updCfg('bashrc', k, e.target.value)
+    }), React.createElement("input", {
+      value: cfg.bashrc.config[k],
+      onChange: e => updCfg('bashrc', k, e.target.value),
+      style: {
+        flex: 1,
+        fontSize: 10
+      }
+    })));
+  }))), React.createElement(Inp, {
+    label: "Login directory (cd on SSH in)",
+    value: cfg.bashrc.config.customDir,
+    onChange: v => updCfg('bashrc', 'customDir', v),
+    placeholder: "~/docker"
+  }), React.createElement(Check, {
+    label: "Include SSH Menu (neofetch + update prompt on login)",
+    checked: cfg.bashrc.config.sshMenu,
+    onChange: () => updCfg('bashrc', 'sshMenu', !cfg.bashrc.config.sshMenu)
+  }), cfg.bashrc.config.sshMenu && React.createElement("div", {
+    style: {
+      marginLeft: 20,
+      marginTop: 6
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 8,
+      marginBottom: 10
+    }
+  }, [['sshColour1', 'BLUE — option 1 colour'], ['sshColour2', 'DARK BLUE — option 2 colour']].map(_ref27 => {
+    let [k, l] = _ref27;
+    return React.createElement("div", {
+      key: k
+    }, React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: 'var(--dim)',
+        marginBottom: 3,
+        fontFamily: 'var(--sans)'
+      }
+    }, l), React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 4,
+        alignItems: 'center'
+      }
+    }, React.createElement("input", {
+      type: "color",
+      value: /^#[0-9a-fA-F]{6}$/.test(cfg.bashrc.config[k] || '') ? cfg.bashrc.config[k] : '#ffffff',
+      onChange: e => updCfg('bashrc', k, e.target.value)
+    }), React.createElement("input", {
+      value: cfg.bashrc.config[k] || '',
+      onChange: e => updCfg('bashrc', k, e.target.value),
+      placeholder: "#87D7FF",
+      style: {
+        flex: 1,
+        fontSize: 10
+      }
+    })), React.createElement("div", {
+      style: {
+        fontSize: 9,
+        color: 'var(--faint)',
+        fontFamily: 'var(--mono)',
+        marginTop: 1
+      }
+    }, (() => {
+      const v = cfg.bashrc.config[k] || '';
+      return /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? 'ANSI ' + hexToAnsi256(v.trim()) : v || '—';
+    })()));
+  })), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4
+    }
+  }, "Menu Options"), (cfg.bashrc.config.sshMenuItems || []).map((item, mi) => React.createElement("div", {
+    key: item.id,
+    style: {
+      display: 'flex',
+      gap: 4,
+      alignItems: 'center',
+      marginBottom: 4
+    }
+  }, React.createElement("input", {
+    value: item.key,
+    onChange: e => {
+      const it = [...cfg.bashrc.config.sshMenuItems];
+      it[mi] = {
+        ...it[mi],
+        key: e.target.value.slice(0, 1).toUpperCase()
+      };
+      updCfg('bashrc', 'sshMenuItems', it);
+    },
+    maxLength: 1,
+    style: {
+      width: 26,
+      textAlign: 'center',
+      fontSize: 11,
+      fontFamily: 'var(--mono)',
+      textTransform: 'uppercase'
+    },
+    placeholder: "S"
+  }), React.createElement("input", {
+    value: item.label,
+    onChange: e => {
+      const it = [...cfg.bashrc.config.sshMenuItems];
+      it[mi] = {
+        ...it[mi],
+        label: e.target.value
+      };
+      updCfg('bashrc', 'sshMenuItems', it);
+    },
+    placeholder: "Label",
+    style: {
+      width: 110,
+      fontSize: 11
+    }
+  }), React.createElement("input", {
+    value: item.command,
+    onChange: e => {
+      const it = [...cfg.bashrc.config.sshMenuItems];
+      it[mi] = {
+        ...it[mi],
+        command: e.target.value
+      };
+      updCfg('bashrc', 'sshMenuItems', it);
+    },
+    placeholder: "bash command (blank = nothing)",
+    style: {
+      flex: 1,
+      fontSize: 10,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("button", {
+    onClick: () => updCfg('bashrc', 'sshMenuItems', cfg.bashrc.config.sshMenuItems.filter((_, i) => i !== mi)),
+    style: {
+      fontSize: 11,
+      background: 'none',
+      border: 'none',
+      color: 'var(--red)',
+      cursor: 'pointer',
+      padding: '2px 4px'
+    }
+  }, "\u2715"))), React.createElement("button", {
+    onClick: () => {
+      const it = [...(cfg.bashrc.config.sshMenuItems || []), {
+        id: Math.random().toString(36).slice(2, 6),
+        key: '',
+        label: '',
+        command: ''
+      }];
+      updCfg('bashrc', 'sshMenuItems', it);
+    },
+    style: {
+      fontSize: 10,
+      padding: '3px 8px',
+      borderRadius: 4,
+      border: '1px dashed var(--bdr)',
+      background: 'transparent',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      marginTop: 2
+    }
+  }, "+ Add Option")))), React.createElement(SwItem, {
+    label: "SSH Authorized Keys",
+    desc: "Multiple keys with labels",
+    icon: "\u26BF",
+    on: cfg.sshKeys.enabled,
+    onToggle: () => togCfg('sshKeys'),
+    expanded: expanded.sshKeys,
+    onExpand: () => togExp('sshKeys')
+  }, React.createElement(LabelledBox, {
+    label: "Public Keys",
+    action: React.createElement(Btn, {
+      onClick: () => updCfg('sshKeys', 'keys', [...cfg.sshKeys.config.keys, {
+        id: uid(),
+        label: '',
+        key: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, cfg.sshKeys.config.keys.map((k, i) => React.createElement("div", {
+    key: k.id,
+    style: {
+      marginBottom: 8,
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '6px 8px',
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: k.label,
+    onChange: e => {
+      const u = [...cfg.sshKeys.config.keys];
+      u[i] = {
+        ...k,
+        label: e.target.value
+      };
+      updCfg('sshKeys', 'keys', u);
+    },
+    placeholder: "Label (e.g. Laptop)",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement("button", {
+    onClick: () => updCfg('sshKeys', 'keys', cfg.sshKeys.config.keys.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7")), React.createElement("textarea", {
+    value: k.key,
+    onChange: e => {
+      const u = [...cfg.sshKeys.config.keys];
+      u[i] = {
+        ...k,
+        key: e.target.value
+      };
+      updCfg('sshKeys', 'keys', u);
+    },
+    rows: 2,
+    placeholder: "ssh-rsa AAAA...",
+    style: {
+      fontSize: 10
+    }
+  }))))), React.createElement(SwItem, {
+    label: "Environment Variables",
+    desc: "Append export KEY=value to .bashrc",
+    icon: "$",
+    on: cfg.envVars.enabled,
+    onToggle: () => togCfg('envVars'),
+    expanded: expanded.envVars,
+    onExpand: () => togExp('envVars')
+  }, React.createElement(LabelledBox, {
+    label: "Variables",
+    action: React.createElement(Btn, {
+      onClick: () => updCfg('envVars', 'vars', [...cfg.envVars.config.vars, {
+        id: uid(),
+        key: '',
+        value: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, cfg.envVars.config.vars.map((v, i) => React.createElement("div", {
+    key: v.id,
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: v.key,
+    onChange: e => {
+      const u = [...cfg.envVars.config.vars];
+      u[i] = {
+        ...v,
+        key: e.target.value
+      };
+      updCfg('envVars', 'vars', u);
+    },
+    placeholder: "KEY",
+    style: {
+      width: 100,
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("span", {
+    style: {
+      color: 'var(--faint)',
+      fontSize: 11,
+      flexShrink: 0
+    }
+  }, "="), React.createElement("input", {
+    value: v.value,
+    onChange: e => {
+      const u = [...cfg.envVars.config.vars];
+      u[i] = {
+        ...v,
+        value: e.target.value
+      };
+      updCfg('envVars', 'vars', u);
+    },
+    placeholder: "value",
+    style: {
+      flex: 1,
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("button", {
+    onClick: () => updCfg('envVars', 'vars', cfg.envVars.config.vars.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7"))))), React.createElement(SwItem, {
+    label: "~/.vimrc",
+    desc: "Vim configuration file",
+    icon: "V",
+    on: cfg.vimrc.enabled,
+    onToggle: () => togCfg('vimrc'),
+    expanded: expanded.vimrc,
+    onExpand: () => togExp('vimrc')
+  }, React.createElement("textarea", {
+    value: cfg.vimrc.config.content,
+    onChange: e => updCfg('vimrc', 'content', e.target.value),
+    rows: 6,
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 11
+    }
+  })), React.createElement(SwItem, {
+    label: "~/.tmux.conf",
+    desc: "Tmux configuration file",
+    icon: "T",
+    on: cfg.tmuxConf.enabled,
+    onToggle: () => togCfg('tmuxConf'),
+    expanded: expanded.tmuxConf,
+    onExpand: () => togExp('tmuxConf')
+  }, React.createElement("textarea", {
+    value: cfg.tmuxConf.config.content,
+    onChange: e => updCfg('tmuxConf', 'content', e.target.value),
+    rows: 5,
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 11
+    }
+  })), React.createElement(SwItem, {
+    label: "~/.gitconfig",
+    desc: "Global Git configuration",
+    icon: "\u2442",
+    on: cfg.gitconfig.enabled,
+    onToggle: () => togCfg('gitconfig'),
+    expanded: expanded.gitconfig,
+    onExpand: () => togExp('gitconfig')
+  }, React.createElement(Inp, {
+    label: "Name",
+    value: cfg.gitconfig.config.name,
+    onChange: v => updCfg('gitconfig', 'name', v),
+    placeholder: "John Doe"
+  }), React.createElement(Inp, {
+    label: "Email",
+    value: cfg.gitconfig.config.email,
+    onChange: v => updCfg('gitconfig', 'email', v),
+    placeholder: "john@example.com"
+  }), React.createElement(Inp, {
+    label: "Default editor",
+    value: cfg.gitconfig.config.editor,
+    onChange: v => updCfg('gitconfig', 'editor', v),
+    placeholder: "vim"
+  }))), leftTab === 'security' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+    label: "SSH Hardening",
+    desc: "Disable password auth, change port, restrict root",
+    icon: "\uD83D\uDD12",
+    on: sec.sshHardening.enabled,
+    onToggle: () => togSec('sshHardening'),
+    expanded: expanded.sshHard,
+    onExpand: () => togExp('sshHard'),
+    badge: {
+      color: 'red',
+      label: 'caution'
+    }
+  }, React.createElement(Check, {
+    label: "Disable password authentication (keys only)",
+    checked: sec.sshHardening.config.disablePasswordAuth,
+    onChange: () => updSec('sshHardening', 'disablePasswordAuth', !sec.sshHardening.config.disablePasswordAuth)
+  }), React.createElement(Check, {
+    label: "Disable root login",
+    checked: sec.sshHardening.config.disableRoot,
+    onChange: () => updSec('sshHardening', 'disableRoot', !sec.sshHardening.config.disableRoot)
+  }), React.createElement(Check, {
+    label: "Disable X11 forwarding",
+    checked: sec.sshHardening.config.disableX11,
+    onChange: () => updSec('sshHardening', 'disableX11', !sec.sshHardening.config.disableX11)
+  }), React.createElement(Inp, {
+    label: "SSH Port (default 22)",
+    value: sec.sshHardening.config.port,
+    onChange: v => updSec('sshHardening', 'port', v),
+    placeholder: "22"
+  }), sec.sshHardening.config.disablePasswordAuth && React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--amber)',
+      fontFamily: 'var(--sans)',
+      background: 'rgba(210,153,34,.1)',
+      padding: '6px 8px',
+      borderRadius: 5,
+      marginTop: 4
+    }
+  }, "\u26A0 Make sure SSH keys are configured before disabling password auth!")), React.createElement(SwItem, {
+    label: "UFW Firewall",
+    desc: "Uncomplicated Firewall with presets",
+    icon: "\u25C9",
+    on: sec.ufw.enabled,
+    onToggle: () => togSec('ufw'),
+    expanded: expanded.ufw,
+    onExpand: () => togExp('ufw')
+  }, React.createElement("div", {
+    style: {
+      marginBottom: 8
+    }
+  }, lbl('Preset'), React.createElement("select", {
+    value: sec.ufw.config.preset,
+    onChange: e => updSec('ufw', 'preset', e.target.value),
+    style: {
+      fontSize: 12,
+      marginBottom: 6
+    }
+  }, UFW_PRESETS.map(p => React.createElement("option", {
+    key: p.id,
+    value: p.id
+  }, p.label))), UFW_PRESETS.find(p => p.id === sec.ufw.config.preset) && React.createElement("div", {
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 5,
+      padding: '5px 8px',
+      fontSize: 11,
+      fontFamily: 'var(--mono)',
+      color: 'var(--dim)'
+    }
+  }, (((_UFW_PRESETS$find = UFW_PRESETS.find(p => p.id === sec.ufw.config.preset)) === null || _UFW_PRESETS$find === void 0 ? void 0 : _UFW_PRESETS$find.rules) || []).map((r, i) => React.createElement("div", {
+    key: i
+  }, "ufw ", r)))), React.createElement(LabelledBox, {
+    label: "Custom Rules (additional)",
+    action: React.createElement(Btn, {
+      onClick: () => updSec('ufw', 'customRules', [...sec.ufw.config.customRules, '']),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, sec.ufw.config.customRules.map((r, i) => React.createElement("div", {
+    key: i,
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: r,
+    onChange: e => {
+      const u = [...sec.ufw.config.customRules];
+      u[i] = e.target.value;
+      updSec('ufw', 'customRules', u);
+    },
+    placeholder: "allow 8080/tcp",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement("button", {
+    onClick: () => updSec('ufw', 'customRules', sec.ufw.config.customRules.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7"))))), React.createElement(SwItem, {
+    label: "fail2ban",
+    desc: "Block brute-force attacks",
+    icon: "\u25C8",
+    on: sec.fail2ban.enabled,
+    onToggle: () => togSec('fail2ban'),
+    expanded: expanded.fail2ban,
+    onExpand: () => togExp('fail2ban')
+  }, React.createElement(Check, {
+    label: "Enable SSH jail",
+    checked: sec.fail2ban.config.sshEnabled,
+    onChange: () => updSec('fail2ban', 'sshEnabled', !sec.fail2ban.config.sshEnabled)
+  }), React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: 8,
+      marginTop: 4
+    }
+  }, React.createElement(Inp, {
+    label: "Max retries",
+    value: String(sec.fail2ban.config.maxRetry),
+    onChange: v => updSec('fail2ban', 'maxRetry', +v),
+    placeholder: "5"
+  }), React.createElement(Inp, {
+    label: "Ban time",
+    value: sec.fail2ban.config.banTime,
+    onChange: v => updSec('fail2ban', 'banTime', v),
+    placeholder: "1h"
+  }), React.createElement(Inp, {
+    label: "Find time",
+    value: sec.fail2ban.config.findTime,
+    onChange: v => updSec('fail2ban', 'findTime', v),
+    placeholder: "10m"
+  }))), React.createElement("div", {
+    style: {
+      padding: '12px 14px',
+      borderBottom: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4
+    }
+  }, "Deploy Credentials"), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 8
+    }
+  }, "Credentials are ", vaultData ? React.createElement("span", {
+    style: {
+      color: 'var(--green)'
+    }
+  }, "encrypted in vault") : React.createElement("span", null, "stored unencrypted"), "."), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      marginBottom: 8
+    }
+  }, !vaultData && React.createElement(Btn, {
+    onClick: () => setShowVault(true),
+    style: {
+      fontSize: 10,
+      padding: '3px 8px'
+    }
+  }, "\uD83D\uDD12 Setup Vault"), vaultData && React.createElement(Btn, {
+    onClick: () => loadHostFromVault(activeHostIdx),
+    style: {
+      fontSize: 10,
+      padding: '3px 8px'
+    },
+    title: "Load saved credentials for this host"
+  }, "\u2193 Load from Vault"), vaultData && React.createElement(Btn, {
+    onClick: () => saveHostToVault(activeHostIdx),
+    style: {
+      fontSize: 10,
+      padding: '3px 8px'
+    },
+    title: "Save current credentials to vault"
+  }, "\u2191 Save to Vault")), hosts.map((h, i) => React.createElement("div", {
+    key: h.id,
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '8px 10px',
+      marginBottom: 6,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4
+    }
+  }, "Host ", i + 1, ": ", h.host || '(unnamed)'), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--mono)'
+    }
+  }, h.username, "@", h.host, ":", h.port))))), leftTab === 'infra' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+    label: "Custom APT Repositories",
+    desc: "Add PPAs or third-party repos",
+    icon: "\uD83D\uDCE6",
+    on: infra.aptRepos.enabled,
+    onToggle: () => togInfra('aptRepos'),
+    expanded: expanded.aptRepos,
+    onExpand: () => togExp('aptRepos')
+  }, React.createElement(LabelledBox, {
+    label: "Repositories",
+    action: React.createElement(Btn, {
+      onClick: () => updInfra('aptRepos', 'repos', [...infra.aptRepos.config.repos, {
+        id: uid(),
+        label: '',
+        id_: '',
+        gpgUrl: '',
+        line: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, infra.aptRepos.config.repos.map((r, i) => React.createElement("div", {
+    key: r.id,
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '8px',
+      marginBottom: 6,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4
+    }
+  }, React.createElement("input", {
+    value: r.label,
+    onChange: e => {
+      const u = [...infra.aptRepos.config.repos];
+      u[i] = {
+        ...r,
+        label: e.target.value
+      };
+      updInfra('aptRepos', 'repos', u);
+    },
+    placeholder: "Label (e.g. Tailscale)",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement("button", {
+    onClick: () => updInfra('aptRepos', 'repos', infra.aptRepos.config.repos.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7")), React.createElement("input", {
+    value: r.gpgUrl,
+    onChange: e => {
+      const u = [...infra.aptRepos.config.repos];
+      u[i] = {
+        ...r,
+        gpgUrl: e.target.value
+      };
+      updInfra('aptRepos', 'repos', u);
+    },
+    placeholder: "GPG key URL (optional)",
+    style: {
+      fontSize: 10,
+      marginBottom: 4
+    }
+  }), React.createElement("input", {
+    value: r.line,
+    onChange: e => {
+      const u = [...infra.aptRepos.config.repos];
+      u[i] = {
+        ...r,
+        line: e.target.value
+      };
+      updInfra('aptRepos', 'repos', u);
+    },
+    placeholder: "deb https://... stable main",
+    style: {
+      fontSize: 10,
+      fontFamily: 'var(--mono)'
+    }
+  }))))), React.createElement(SwItem, {
+    label: "Cron Jobs",
+    desc: "Schedule recurring tasks",
+    icon: "\u23F1",
+    on: infra.cronJobs.enabled,
+    onToggle: () => togInfra('cronJobs'),
+    expanded: expanded.cronJobs,
+    onExpand: () => togExp('cronJobs')
+  }, React.createElement(LabelledBox, {
+    label: "Scheduled Jobs",
+    action: React.createElement(Btn, {
+      onClick: () => updInfra('cronJobs', 'jobs', [...infra.cronJobs.config.jobs, {
+        id: uid(),
+        label: '',
+        schedule: '0 2 * * *',
+        command: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, React.createElement("div", {
+    style: {
+      fontSize: 9,
+      color: 'var(--dim)',
+      fontFamily: 'var(--mono)',
+      marginBottom: 6
+    }
+  }, "min hour day month weekday"), infra.cronJobs.config.jobs.map((j, i) => React.createElement("div", {
+    key: j.id,
+    style: {
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '8px',
+      marginBottom: 6,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4
+    }
+  }, React.createElement("input", {
+    value: j.label,
+    onChange: e => {
+      const u = [...infra.cronJobs.config.jobs];
+      u[i] = {
+        ...j,
+        label: e.target.value
+      };
+      updInfra('cronJobs', 'jobs', u);
+    },
+    placeholder: "Label",
+    style: {
+      flex: 1,
+      fontSize: 11
+    }
+  }), React.createElement("button", {
+    onClick: () => updInfra('cronJobs', 'jobs', infra.cronJobs.config.jobs.filter((_, k) => k !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7")), React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 2fr',
+      gap: 4
+    }
+  }, React.createElement("input", {
+    value: j.schedule,
+    onChange: e => {
+      const u = [...infra.cronJobs.config.jobs];
+      u[i] = {
+        ...j,
+        schedule: e.target.value
+      };
+      updInfra('cronJobs', 'jobs', u);
+    },
+    placeholder: "0 2 * * *",
+    style: {
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("input", {
+    value: j.command,
+    onChange: e => {
+      const u = [...infra.cronJobs.config.jobs];
+      u[i] = {
+        ...j,
+        command: e.target.value
+      };
+      updInfra('cronJobs', 'jobs', u);
+    },
+    placeholder: "apt-get update -y",
+    style: {
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  })))))), React.createElement(SwItem, {
+    label: "Portainer Stack Deploy",
+    desc: "Deploy a docker-compose stack",
+    icon: "\u229B",
+    on: infra.portainerStack.enabled,
+    onToggle: () => togInfra('portainerStack'),
+    expanded: expanded.pStack,
+    onExpand: () => togExp('pStack')
+  }, lbl('docker-compose.yml content'), React.createElement("textarea", {
+    value: infra.portainerStack.config.compose,
+    onChange: e => updInfra('portainerStack', 'compose', e.target.value),
+    rows: 7,
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 11
+    }
+  })), React.createElement(SwItem, {
+    label: "DNS / Hosts Entries",
+    desc: "Add entries to /etc/hosts",
+    icon: "\u25F1",
+    on: infra.dnsEntries.enabled,
+    onToggle: () => togInfra('dnsEntries'),
+    expanded: expanded.dns,
+    onExpand: () => togExp('dns')
+  }, React.createElement(LabelledBox, {
+    label: "Entries",
+    action: React.createElement(Btn, {
+      onClick: () => updInfra('dnsEntries', 'entries', [...infra.dnsEntries.config.entries, {
+        id: uid(),
+        ip: '',
+        hostname: ''
+      }]),
+      variant: "ghost",
+      style: {
+        fontSize: 11,
+        padding: '1px 7px'
+      }
+    }, "+ Add")
+  }, infra.dnsEntries.config.entries.map((e, i) => React.createElement("div", {
+    key: e.id,
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 4,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: e.ip,
+    onChange: ev => {
+      const u = [...infra.dnsEntries.config.entries];
+      u[i] = {
+        ...e,
+        ip: ev.target.value
+      };
+      updInfra('dnsEntries', 'entries', u);
+    },
+    placeholder: "192.168.1.x",
+    style: {
+      width: 120,
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("input", {
+    value: e.hostname,
+    onChange: ev => {
+      const u = [...infra.dnsEntries.config.entries];
+      u[i] = {
+        ...e,
+        hostname: ev.target.value
+      };
+      updInfra('dnsEntries', 'entries', u);
+    },
+    placeholder: "myserver.local",
+    style: {
+      flex: 1,
+      fontSize: 11,
+      fontFamily: 'var(--mono)'
+    }
+  }), React.createElement("button", {
+    onClick: () => updInfra('dnsEntries', 'entries', infra.dnsEntries.config.entries.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 14,
+      padding: '0 2px'
+    }
+  }, "\xD7")))))), leftTab === 'profiles' && React.createElement("div", {
+    style: {
+      padding: '12px 14px'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 12
+    }
+  }, "Save your entire configuration as a named profile. Profiles are stored in your browser."), profiles.length === 0 && React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)',
+      textAlign: 'center',
+      padding: '20px 0'
+    }
+  }, "No profiles saved yet."), profiles.map(p => React.createElement("div", {
+    key: p.id,
+    style: {
+      background: 'var(--card)',
+      borderRadius: 8,
+      padding: '10px 12px',
+      marginBottom: 8,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4
+    }
+  }, React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 13,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)'
+    }
+  }, p.name), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, p.hostname || 'no hostname', " \xB7 ", new Date(p.at).toLocaleDateString())), React.createElement(Btn, {
+    onClick: () => loadProfile(p),
+    variant: "primary",
+    style: {
+      fontSize: 11,
+      padding: '2px 8px'
+    }
+  }, "Load"), React.createElement(Btn, {
+    onClick: () => {
+      if (confirm('Delete profile?')) setProfiles(x => x.filter(q => q.id !== p.id));
+    },
+    variant: "ghost",
+    style: {
+      fontSize: 11,
+      padding: '2px 6px',
+      color: 'var(--faint)'
+    }
+  }, "\xD7")), p.notes && React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      fontStyle: 'italic'
+    }
+  }, p.notes), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--faint)',
+      fontFamily: 'var(--mono)',
+      marginTop: 4
+    }
+  }, Object.keys(p.sw || {}).filter(k => p.sw[k].enabled).join(', ') || 'no software selected')))), leftTab === 'custom' && React.createElement("div", {
+    style: {
+      padding: '12px 14px'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 12
+    }
+  }, "Custom bash blocks run at the end of the script."), custom.map((c, i) => React.createElement("div", {
+    key: c.id,
+    style: {
+      background: 'var(--card)',
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 8,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      marginBottom: 6,
+      alignItems: 'center'
+    }
+  }, React.createElement("input", {
+    value: c.label,
+    onChange: e => setCustom(p => p.map((x, j) => j === i ? {
+      ...x,
+      label: e.target.value
+    } : x)),
+    placeholder: "Label (optional)",
+    style: {
+      flex: 1,
+      fontSize: 12
+    }
+  }), React.createElement("button", {
+    onClick: () => setCustom(p => p.filter((_, j) => j !== i)),
+    style: {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontSize: 15,
+      padding: '0 3px',
+      lineHeight: 1
+    }
+  }, "\xD7")), React.createElement("textarea", {
+    value: c.command,
+    onChange: e => setCustom(p => p.map((x, j) => j === i ? {
+      ...x,
+      command: e.target.value
+    } : x)),
+    rows: 3,
+    placeholder: "# bash commands...",
+    style: {
+      fontSize: 11
+    }
+  }))), React.createElement("button", {
+    onClick: () => setCustom(p => [...p, {
+      id: uid(),
+      label: '',
+      command: ''
+    }]),
+    style: {
+      width: '100%',
+      padding: '8px',
+      fontSize: 12,
+      border: '1px dashed var(--bdr)',
+      borderRadius: 8,
+      background: 'transparent',
+      cursor: 'pointer',
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "+ Add command block")))), React.createElement("div", {
+    style: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      minWidth: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      borderBottom: '1px solid var(--bdr)',
+      padding: '6px 12px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 0
+    }
+  }, RIGHT_TABS.map(_ref28 => {
+    let [k, l] = _ref28;
+    return React.createElement("button", {
+      key: k,
+      onClick: () => setRightTab(k),
+      style: {
+        padding: '4px 11px',
+        fontSize: 12,
+        borderRadius: 6,
+        border: `1px solid ${rightTab === k ? 'var(--teal)' : 'var(--bdr)'}`,
+        background: rightTab === k ? 'var(--tealDim)' : 'transparent',
+        color: rightTab === k ? 'var(--teal)' : 'var(--dim)',
+        cursor: 'pointer',
+        fontWeight: rightTab === k ? 600 : 400,
+        fontFamily: 'var(--sans)',
+        transition: 'all .15s'
+      }
+    }, l);
+  }), React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }), rightTab === 'script' && React.createElement(React.Fragment, null, React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5,
+      cursor: 'pointer',
+      fontSize: 11,
+      color: dryRun ? 'var(--amber)' : 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, React.createElement("input", {
+    type: "checkbox",
+    checked: dryRun,
+    onChange: e => setDryRun(e.target.checked),
+    style: {
+      accentColor: 'var(--amber)'
+    }
+  }), "Dry Run"), React.createElement("div", {
+    style: {
+      width: 1,
+      height: 16,
+      background: 'var(--bdr)'
+    }
+  }), [['sh', 'Script'], ['rollback', 'Rollback'], ['ansible', 'Ansible'], ['curl', 'cURL'], ['diff', 'Diff']].map(_ref29 => {
+    let [v, l] = _ref29;
+    return React.createElement("button", {
+      key: v,
+      onClick: () => {
+        if (v === 'diff') setPrevScript(script);
+        setScriptView(v);
+      },
+      style: {
+        padding: '3px 9px',
+        fontSize: 11,
+        borderRadius: 5,
+        border: `1px solid ${scriptView === v ? 'var(--blue)' : 'var(--bdr)'}`,
+        background: scriptView === v ? 'var(--blueDim)' : 'transparent',
+        color: scriptView === v ? 'var(--blue)' : 'var(--dim)',
+        cursor: 'pointer',
+        fontFamily: 'var(--sans)'
+      }
+    }, l);
+  }), React.createElement("div", {
+    style: {
+      width: 1,
+      height: 16,
+      background: 'var(--bdr)'
+    }
+  }), React.createElement(Btn, {
+    onClick: () => copyText(scriptView === 'rollback' ? rollback : scriptView === 'ansible' ? ansible : script, scriptView),
+    style: {
+      fontSize: 11,
+      color: copied === scriptView ? 'var(--teal)' : 'var(--text)',
+      borderColor: copied === scriptView ? 'var(--teal)' : 'var(--bdr)'
+    }
+  }, copied === scriptView ? '✓ Copied' : 'Copy'), React.createElement(Btn, {
+    onClick: () => dlScript_(scriptView === 'rollback' ? rollback : scriptView === 'ansible' ? ansible : script, `swaps-${hostname || 'host'}.${scriptView === 'ansible' ? 'yml' : 'sh'}`),
+    style: {
+      fontSize: 11
+    }
+  }, "\u2193 Download"))), rightTab === 'script' && (scriptView === 'diff' ? React.createElement("div", {
+    style: {
+      flex: 1,
+      overflow: 'auto',
+      padding: '12px 14px',
+      background: 'var(--bg)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 8
+    }
+  }, prevScript ? `Changes from snapshot (${script.split('\n').length - prevScript.split('\n').length > 0 ? '+' : ''}${script.split('\n').length - prevScript.split('\n').length} lines)` : 'Click Diff tab again after making changes to see differences.'), React.createElement("pre", {
+    style: {
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.7,
+      color: 'var(--text)',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word'
+    },
+    dangerouslySetInnerHTML: {
+      __html: diffHtml || hlScript
+    }
+  })) : scriptView === 'curl' ? React.createElement("pre", {
+    style: {
+      flex: 1,
+      overflow: 'auto',
+      margin: 0,
+      padding: '12px 14px',
+      background: 'var(--bg)',
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.75,
+      color: 'var(--text)',
+      whiteSpace: 'pre-wrap'
+    }
+  }, curlScript) : React.createElement("pre", {
+    style: {
+      flex: 1,
+      overflow: 'auto',
+      margin: 0,
+      padding: '12px 14px',
+      background: 'var(--bg)',
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.75,
+      color: 'var(--text)',
+      whiteSpace: 'pre-wrap',
+      wordBreak: 'break-word'
+    },
+    dangerouslySetInnerHTML: {
+      __html: scriptView === 'rollback' ? hlRollback : scriptView === 'ansible' ? hlAnsibleText : hlScript
+    }
+  })), rightTab === 'deploy' && React.createElement("div", {
+    style: {
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }
+  }, React.createElement("div", {
+    style: {
+      background: 'var(--surf)',
+      borderBottom: '1px solid var(--bdr)',
+      padding: '4px 8px',
+      display: 'flex',
+      gap: 4,
+      alignItems: 'center',
+      flexShrink: 0
+    }
+  }, hosts.map((h, i) => {
+    var _terminals$i, _terminals$i2;
+    return React.createElement("div", {
+      key: h.id,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4
+      }
+    }, React.createElement("button", {
+      onClick: () => setActiveHostIdx(i),
+      style: {
+        padding: '3px 10px',
+        fontSize: 11,
+        borderRadius: 6,
+        border: `1px solid ${activeHostIdx === i ? 'var(--teal)' : 'var(--bdr)'}`,
+        background: activeHostIdx === i ? 'var(--tealDim)' : 'transparent',
+        cursor: 'pointer',
+        color: activeHostIdx === i ? 'var(--teal)' : 'var(--dim)',
+        fontFamily: 'var(--sans)'
+      }
+    }, ((_terminals$i = terminals[i]) === null || _terminals$i === void 0 ? void 0 : _terminals$i.status) === 'success' ? '✓ ' : '', ((_terminals$i2 = terminals[i]) === null || _terminals$i2 === void 0 ? void 0 : _terminals$i2.status) === 'error' ? '✗ ' : '', h.host || `Host ${i + 1}`), hosts.length > 1 && React.createElement("button", {
+      onClick: () => removeHost(i),
+      style: {
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        color: 'var(--faint)',
+        fontSize: 11,
+        padding: '0 2px'
+      }
+    }, "\xD7"));
+  }), React.createElement(Btn, {
+    onClick: addHost,
+    variant: "ghost",
+    style: {
+      fontSize: 11,
+      padding: '2px 8px'
+    }
+  }, "+ Host")), React.createElement("div", {
+    style: {
+      padding: '10px 14px',
+      background: 'var(--surf)',
+      borderBottom: '1px solid var(--bdr)',
+      flexShrink: 0
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 70px 1fr',
+      gap: 8,
+      marginBottom: 8
+    }
+  }, React.createElement("div", null, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 3
+    }
+  }, "HOST / IP"), React.createElement("input", {
+    value: curHost.host,
+    onChange: e => updHost(activeHostIdx, 'host', e.target.value),
+    placeholder: "192.168.1.x",
+    style: {
+      fontSize: 12
+    }
+  })), React.createElement("div", null, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 3
+    }
+  }, "PORT"), React.createElement("input", {
+    value: curHost.port,
+    onChange: e => updHost(activeHostIdx, 'port', e.target.value),
+    placeholder: "22",
+    style: {
+      fontSize: 12
+    }
+  })), React.createElement("div", null, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 3
+    }
+  }, "USERNAME"), React.createElement("input", {
+    value: curHost.username,
+    onChange: e => updHost(activeHostIdx, 'username', e.target.value),
+    placeholder: "root",
+    style: {
+      fontSize: 12
+    }
+  }))), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 14,
+      marginBottom: 6,
+      alignItems: 'center'
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      textTransform: 'uppercase',
+      letterSpacing: '.07em',
+      fontFamily: 'var(--sans)'
+    }
+  }, "Auth"), [['password', 'Password'], ['key', 'Private Key']].map(_ref30 => {
+    let [v, l] = _ref30;
+    return React.createElement("label", {
+      key: v,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        cursor: 'pointer',
+        fontSize: 12,
+        color: 'var(--text)',
+        fontFamily: 'var(--sans)'
+      }
+    }, React.createElement("input", {
+      type: "radio",
+      name: 'auth' + activeHostIdx,
+      checked: curHost.authType === v,
+      onChange: () => updHost(activeHostIdx, 'authType', v),
+      style: {
+        accentColor: 'var(--teal)'
+      }
+    }), l);
+  })), curHost.authType === 'password' ? React.createElement("input", {
+    type: "password",
+    value: curHost.password,
+    onChange: e => updHost(activeHostIdx, 'password', e.target.value),
+    placeholder: "SSH Password",
+    style: {
+      fontSize: 12,
+      marginBottom: 6
+    }
+  }) : React.createElement("textarea", {
+    value: curHost.privateKey,
+    onChange: e => updHost(activeHostIdx, 'privateKey', e.target.value),
+    rows: 2,
+    placeholder: "-----BEGIN OPENSSH PRIVATE KEY-----",
+    style: {
+      fontSize: 11,
+      marginBottom: 6
+    }
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 6
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "Sudo Password"), React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5,
+      cursor: 'pointer',
+      marginLeft: 'auto'
+    }
+  }, React.createElement("input", {
+    type: "checkbox",
+    checked: curHost.sudoSameAsSSH,
+    onChange: e => updHost(activeHostIdx, 'sudoSameAsSSH', e.target.checked),
+    style: {
+      accentColor: 'var(--teal)',
+      width: 'auto'
+    }
+  }), React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, "Same as SSH"))), !curHost.sudoSameAsSSH && React.createElement("input", {
+    type: "password",
+    value: curHost.sudoPassword,
+    onChange: e => updHost(activeHostIdx, 'sudoPassword', e.target.value),
+    placeholder: "Sudo password",
+    style: {
+      fontSize: 12,
+      marginBottom: 6
+    }
+  }), React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6
+    }
+  }, React.createElement(Btn, {
+    onClick: () => deployHost(activeHostIdx),
+    variant: "primary",
+    disabled: !canDeploy,
+    style: {
+      flex: 1,
+      padding: '7px 12px'
+    }
+  }, isRunning ? 'Deploying…' : '⬆ Deploy to Host'), isRunning && React.createElement(Btn, {
+    onClick: () => abortHost(activeHostIdx),
+    variant: "danger"
+  }, "Abort")), !isRunning && curTerm.status !== 'idle' && React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: curTerm.status === 'success' ? 'var(--green)' : 'var(--red)',
+      fontFamily: 'var(--sans)',
+      marginTop: 5
+    }
+  }, curTerm.status === 'success' ? '✓ Deployment complete' : '✗ Deployment failed — check output below'), verifyResults && React.createElement("div", {
+    style: {
+      marginTop: 8,
+      background: 'var(--bg)',
+      borderRadius: 6,
+      padding: '6px 10px',
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)',
+      marginBottom: 4,
+      textTransform: 'uppercase',
+      letterSpacing: '.07em'
+    }
+  }, "Post-deploy verification"), React.createElement("div", {
+    style: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: 4
+    }
+  }, Object.entries(verifyResults).map(_ref31 => {
+    let [k, v] = _ref31;
+    return React.createElement(Tag, {
+      key: k,
+      color: v.ok ? 'green' : 'red'
+    }, v.ok ? '✓' : '✗', " ", k);
+  })))), React.createElement("div", {
+    style: {
+      flex: 1,
+      overflow: 'hidden'
+    }
+  }, React.createElement(Terminal, {
+    lines: curTerm.lines,
+    status: curTerm.status,
+    sudoPrompt: curTerm.sudoPrompt,
+    sudoPassword: effSudo,
+    onSendInput: d => sendInput(activeHostIdx, d),
+    progressSections: progressSections
+  }))), rightTab === 'history' && React.createElement("div", {
+    style: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '12px 14px'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, history.length, " deploy", history.length !== 1 ? 's' : '', " recorded"), history.length > 0 && React.createElement(Btn, {
+    onClick: () => {
+      if (confirm('Clear history?')) setHistory([]);
+    },
+    variant: "ghost",
+    style: {
+      fontSize: 11
+    }
+  }, "Clear")), history.length === 0 && React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: 'var(--faint)',
+      fontFamily: 'var(--sans)',
+      textAlign: 'center',
+      padding: '20px 0'
+    }
+  }, "No deploy history yet."), history.map(h => React.createElement("div", {
+    key: h.id,
+    style: {
+      background: 'var(--card)',
+      borderRadius: 8,
+      padding: '10px 12px',
+      marginBottom: 8,
+      border: '1px solid var(--bdr)'
+    }
+  }, React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4
+    }
+  }, React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      color: 'var(--text)',
+      fontFamily: 'var(--sans)'
+    }
+  }, h.hostname || h.host), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--dim)',
+      fontFamily: 'var(--sans)'
+    }
+  }, new Date(h.at).toLocaleString(), h.dryRun ? ' · dry run' : '')), h.dryRun && React.createElement(Tag, {
+    color: "amber"
+  }, "Dry Run")), React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--faint)',
+      fontFamily: 'var(--mono)'
+    }
+  }, (h.pkgs || []).join(', ') || '—'))))))));
+}
+class ErrorBoundary extends React.Component {
+  constructor(p) {
+    super(p);
+    this.state = {
+      err: null
+    };
+  }
+  static getDerivedStateFromError(e) {
+    return {
+      err: e
+    };
+  }
+  render() {
+    if (this.state.err) return React.createElement("pre", {
+      style: {
+        color: 'var(--red)',
+        background: 'var(--bg)',
+        padding: 20,
+        fontSize: 12,
+        fontFamily: 'var(--mono)',
+        whiteSpace: 'pre-wrap'
+      }
+    }, 'React Error:\n' + String(this.state.err) + '\n\n' + (this.state.err.stack || ''));
+    return this.props.children;
+  }
+}
+window.onerror = function (msg, src, line, col, err) {
+  document.getElementById('root').innerHTML = '<pre style="color:#f85149;background:#0d1117;padding:20px;font-size:12px;font-family:monospace;white-space:pre-wrap">Error: ' + msg + '\n\n' + (err && err.stack ? err.stack : 'line ' + line) + '\n\nHard-refresh (Ctrl+Shift+R) to reset.</pre>';
+  return true;
+};
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null, React.createElement(App, null)));
+</script>
+</body>
+</html>
