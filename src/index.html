@@ -3370,16 +3370,18 @@ function App() {
     className: "full-mobile" + (mobilePanel === 'right' ? " mob-panel-hide" : "")
   }, React.createElement("div", {
     style: {
-      padding: '10px 16px 8px',
+      padding: '10px 16px',
       borderBottom: '1px solid var(--bdr)',
       flexShrink: 0,
+      minHeight: 50,
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'space-between'
+      justifyContent: 'space-between',
+      boxSizing: 'border-box'
     }
   }, React.createElement("span", {
     style: {
-      fontSize: 12,
+      fontSize: 15,
       fontWeight: 600,
       color: 'var(--text)',
       fontFamily: 'var(--sans)',
