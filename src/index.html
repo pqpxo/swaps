@@ -3301,15 +3301,7 @@ function App() {
       padding: '6px 11px'
     },
     title: "Toggle theme"
-  }, theme === 'dark' ? '☀' : '🌙'), React.createElement(Btn, {
-    onClick: () => setShowVault(true),
-    style: {
-      fontSize: 14,
-      padding: '6px 11px',
-      opacity: vaultLocked ? 1 : .6
-    },
-    title: vaultLocked ? 'Unlock credential vault' : 'Vault unlocked'
-  }, vaultLocked ? '🔒' : '🔓'), (curTerm.status === 'success' || curTerm.status === 'error') && verifyResults && React.createElement(Btn, {
+  }, theme === 'dark' ? '☀' : '🌙'), (curTerm.status === 'success' || curTerm.status === 'error') && verifyResults && React.createElement(Btn, {
     onClick: () => setRightTab('deploy'),
     variant: "blue",
     style: {
