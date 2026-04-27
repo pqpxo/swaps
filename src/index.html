@@ -884,7 +884,6 @@ function Btn(_ref8) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 5,
-    ...style
   };
   const v = {
     default: {
@@ -917,7 +916,8 @@ function Btn(_ref8) {
     onClick: disabled ? undefined : onClick,
     style: {
       ...base,
-      ...v[variant]
+      ...v[variant],
+      ...style
     }
   }, children);
 }
@@ -3290,21 +3290,24 @@ function App() {
     onClick: () => setShowImport(true),
     style: {
       fontSize: 12,
-      padding: '6px 13px'
+      padding: '6px 13px',
+      background: 'var(--card)'
     },
     title: "Import from host"
   }, "\u2193 Import"), React.createElement(Btn, {
     onClick: openShare,
     style: {
       fontSize: 12,
-      padding: '6px 13px'
+      padding: '6px 13px',
+      background: 'var(--card)'
     },
     title: "Share config"
   }, "\u21C4 Share"), React.createElement(Btn, {
     onClick: () => setTheme(t => t === 'dark' ? 'light' : 'dark'),
     style: {
       fontSize: 15,
-      padding: '6px 11px'
+      padding: '6px 11px',
+      background: 'var(--card)'
     },
     title: "Toggle theme"
   }, theme === 'dark' ? '☀' : '🌙'), (curTerm.status === 'success' || curTerm.status === 'error') && verifyResults && React.createElement(Btn, {
