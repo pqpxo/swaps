@@ -70,7 +70,7 @@ button{cursor:pointer;font-family:var(--sans)}
   /* Header responsive */
   .hdr{flex-wrap:wrap!important;padding:12px 14px!important;gap:8px!important;position:relative!important}
   .hdr-brand{flex:none!important;width:100%!important;gap:10px!important;padding-right:92px!important;box-sizing:border-box!important}
-  .hdr-links{position:absolute!important;top:50%!important;right:14px!important;transform:translateY(-50%)!important;display:flex!important;gap:6px!important}
+  .hdr-links{position:absolute!important;top:35px!important;right:14px!important;transform:translateY(-50%)!important;display:flex!important;gap:6px!important}
   .hdr-logo{width:46px!important;height:46px!important;border-radius:10px!important}
   .hdr-title{font-size:18px!important}
   .hdr-controls{order:2!important;flex:none!important;margin-left:auto!important;width:auto!important;flex-wrap:nowrap!important;gap:6px!important}
@@ -3273,7 +3273,7 @@ function App() {
         href: settings[k+'Url'] || defUrl,
         target: "_blank",
         rel: "noopener noreferrer",
-        style: { display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32, borderRadius:8, border:'1px solid var(--bdr)', background:'transparent', color:'var(--dim)', cursor:'pointer', textDecoration:'none', flexShrink:0 }
+        style: { display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36, borderRadius:8, background:'var(--card)', border:'1px solid var(--bdr)', color:'var(--dim)', cursor:'pointer', textDecoration:'none', flexShrink:0 }
       }, React.createElement(HdrIcon, { name: settings[k+'Icon'] || defIcon }))
     )
   ), React.createElement("div", {
