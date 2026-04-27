@@ -74,7 +74,8 @@ button{cursor:pointer;font-family:var(--sans)}
   .hdr-title{font-size:18px!important}
   .hdr-controls{order:3!important;width:100%!important;flex:none!important;flex-wrap:wrap!important;gap:6px!important}
   .hdr-btns{gap:4px!important}
-  .right-toolbar{flex-wrap:wrap!important;row-gap:6px!important;padding:8px 12px!important;gap:8px!important}
+  .right-toolbar{flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important;padding:8px 12px!important;gap:6px!important}
+  .right-toolbar::-webkit-scrollbar{display:none}
   .mob-panel-hide{display:none!important}
   /* Scroll areas clear the fixed nav */
   [style*="overflow-y: auto"],[style*="overflow: auto"],[style*="overflow: hidden auto"]{padding-bottom:72px!important}
@@ -3241,29 +3242,7 @@ function App() {
   }, PI_MODELS.map(m => React.createElement("option", {
     key: m.id,
     value: m.id
-  }, m.label))), React.createElement("div", {
-    style: {
-      width: 1,
-      height: 20,
-      background: 'var(--bdr)',
-      flexShrink: 0
-    }
-  }), React.createElement("label", {
-    style: {
-      fontSize: 11,
-      color: 'var(--dim)',
-      fontFamily: 'var(--sans)',
-      flexShrink: 0
-    }
-  }, "Host"), React.createElement("input", {
-    value: hostname,
-    onChange: e => setHostname(e.target.value),
-    placeholder: "my-server",
-    style: {
-      width: 140,
-      fontSize: 12
-    }
-  }), React.createElement("input", {
+  }, m.label))), React.createElement("input", {
     value: notes,
     onChange: e => setNotes(e.target.value),
     placeholder: "Notes / changelog\u2026",
@@ -4943,7 +4922,8 @@ function App() {
       gap: 6,
       flexShrink: 0
     }
-  }, RIGHT_TABS.map(_ref28 => {
+  }, React.createElement("div", {className: "hide-mobile", style: {display:'flex', gap:6, flexShrink:0}},
+    RIGHT_TABS.map(_ref28 => {
     let [k, l] = _ref28;
     return React.createElement("button", {
       key: k,
@@ -4961,7 +4941,8 @@ function App() {
         transition: 'all .15s'
       }
     }, l);
-  }), React.createElement("div", {
+  })), React.createElement("div", {
+    className: "hide-mobile",
     style: {
       flex: 1
     }
