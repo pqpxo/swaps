@@ -40,6 +40,7 @@ select{cursor:pointer;appearance:none;padding-right:24px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238b949e' fill='none' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 7px center}
 button{cursor:pointer;font-family:var(--sans)}
+.hdr-btns button{background:var(--card);border-color:var(--bdr)}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
@@ -75,7 +76,7 @@ button{cursor:pointer;font-family:var(--sans)}
   .hdr-title{font-size:18px!important}
   .hdr-controls{order:2!important;flex:none!important;width:auto!important;flex-wrap:nowrap!important;gap:6px!important}
   .hdr-btns{order:2!important;flex:none!important;margin-left:auto!important;gap:4px!important}
-  .hdr-btns button{background:var(--card)!important;border-color:var(--bdr)!important}
+
   .right-toolbar{flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important;padding:8px 12px!important;gap:6px!important}
   .right-toolbar::-webkit-scrollbar{display:none}
   .mob-panel-hide{display:none!important}
@@ -3411,7 +3412,7 @@ function App() {
       padding: '6px 10px',
       borderRadius: 7,
       border: '1px solid var(--bdr)',
-      background: 'transparent',
+      background: 'var(--card)',
       cursor: 'pointer',
       color: 'var(--dim)',
       lineHeight: 1,
@@ -3425,7 +3426,7 @@ function App() {
       padding: '4px 9px',
       borderRadius: 6,
       border: '1px solid var(--bdr)',
-      background: 'transparent',
+      background: 'var(--card)',
       cursor: 'pointer',
       color: 'var(--faint)',
       fontFamily: 'var(--sans)',
