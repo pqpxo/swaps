@@ -53,7 +53,6 @@ button{cursor:pointer;font-family:var(--sans)}
   display:none;
   background:var(--surf);
   border-top:1px solid var(--bdr);
-  flex-shrink:0;
   padding:0 4px;
   align-items:stretch;
   gap:0;
@@ -66,7 +65,9 @@ button{cursor:pointer;font-family:var(--sans)}
   .hide-mobile{display:none!important}
   .full-mobile{width:100%!important}
   .mobile-only{display:flex!important}
-  .mob-nav{display:flex;min-height:54px}
+  /* Sticky bottom nav */
+  .mob-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:999;height:64px}
+  /* Header responsive */
   .hdr{flex-wrap:wrap!important;padding:8px 10px!important;gap:6px!important}
   .hdr-brand{flex:1!important;width:auto!important;gap:8px!important}
   .hdr-logo{width:36px!important;height:36px!important;border-radius:8px!important}
@@ -75,6 +76,19 @@ button{cursor:pointer;font-family:var(--sans)}
   .hdr-btns{gap:4px!important}
   .right-toolbar{flex-wrap:wrap!important;row-gap:4px!important;padding:4px 8px!important}
   .mob-panel-hide{display:none!important}
+  /* Scroll areas clear the fixed nav */
+  [style*="overflow-y: auto"],[style*="overflow: auto"],[style*="overflow: hidden auto"]{padding-bottom:72px!important}
+  /* Inputs ≥16px prevents iOS auto-zoom */
+  input:not([type=color]):not([type=checkbox]):not([type=radio]),textarea,select{font-size:16px!important;min-height:44px!important;padding:10px 12px!important}
+  input[type=color]{min-height:unset!important}
+  /* Larger toggle switch */
+  .sw-toggle{width:50px!important;height:28px!important;border-radius:14px!important}
+  .sw-toggle-thumb{width:20px!important;height:20px!important;top:4px!important}
+  .sw-toggle.on .sw-toggle-thumb{left:26px!important}
+  .sw-toggle.off .sw-toggle-thumb{left:4px!important}
+  /* Larger SwItem rows */
+  .sw-row{padding:14px 16px!important;gap:12px!important}
+  .sw-icon{width:36px!important;height:36px!important;border-radius:8px!important;font-size:16px!important}
 }
 </style>
 </head>
@@ -717,6 +731,7 @@ function Toggle(_ref5) {
   } = _ref5;
   return React.createElement("div", {
     onClick: onChange,
+    className: "sw-toggle " + (on ? "on" : "off"),
     style: {
       width: 38,
       height: 20,
@@ -728,6 +743,7 @@ function Toggle(_ref5) {
       flexShrink: 0
     }
   }, React.createElement("div", {
+    className: "sw-toggle-thumb",
     style: {
       position: 'absolute',
       top: 3,
@@ -1061,6 +1077,7 @@ function SwItem(_ref11) {
       borderBottom: '1px solid var(--bdr)'
     }
   }, React.createElement("div", {
+    className: "sw-row",
     style: {
       display: 'flex',
       alignItems: 'center',
@@ -1072,6 +1089,7 @@ function SwItem(_ref11) {
     },
     onClick: hasConf && on ? onExpand : undefined
   }, React.createElement("div", {
+    className: "sw-icon",
     style: {
       width: 28,
       height: 28,
@@ -5472,26 +5490,26 @@ function App() {
         onClick: () => { setLeftTab(k); setMobilePanel('left'); },
         style: {
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-          padding:'2px 6px', minWidth:46, height:54, border:'none', background:'transparent', cursor:'pointer',
+          padding:'2px 6px', minWidth:52, height:64, border:'none', background:'transparent', cursor:'pointer',
           color: leftTab===k && mobilePanel==='left' ? 'var(--teal)' : 'var(--dim)',
           borderTop: leftTab===k && mobilePanel==='left' ? '2px solid var(--teal)' : '2px solid transparent',
           flexShrink:0
         }
       },
-      React.createElement("span", {style:{fontSize:18}}, icon),
-      React.createElement("span", {style:{fontSize:9, marginTop:1, fontFamily:'var(--sans)'}}, lbl_)
+      React.createElement("span", {style:{fontSize:22}}, icon),
+      React.createElement("span", {style:{fontSize:11, marginTop:2, fontFamily:'var(--sans)'}}, lbl_)
     )),
-    React.createElement("div", {style:{width:1, height:32, background:'var(--bdr)', alignSelf:'center', flexShrink:0, margin:'0 2px'}}),
+    React.createElement("div", {style:{width:1, height:36, background:'var(--bdr)', alignSelf:'center', flexShrink:0, margin:'0 2px'}}),
     ...[['script','Script'],['deploy','Deploy'],['history','Hist']].map(([k,l]) =>
       React.createElement("button", {
         key: k,
         onClick: () => { setRightTab(k); setMobilePanel('right'); },
         style: {
           display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-          padding:'2px 8px', minWidth:46, height:54, border:'none', background:'transparent', cursor:'pointer',
+          padding:'2px 8px', minWidth:52, height:64, border:'none', background:'transparent', cursor:'pointer',
           color: rightTab===k && mobilePanel==='right' ? 'var(--teal)' : 'var(--dim)',
           borderTop: rightTab===k && mobilePanel==='right' ? '2px solid var(--teal)' : '2px solid transparent',
-          flexShrink:0, fontFamily:'var(--sans)', fontSize:11
+          flexShrink:0, fontFamily:'var(--sans)', fontSize:13
         }
       }, l)
     )
