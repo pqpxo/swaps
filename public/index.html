@@ -69,10 +69,11 @@ button{cursor:pointer;font-family:var(--sans)}
   .mob-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:999;height:64px}
   /* Header responsive */
   .hdr{flex-wrap:wrap!important;padding:12px 14px!important;gap:8px!important}
-  .hdr-brand{flex:none!important;width:100%!important;gap:10px!important}
+  .hdr-brand{order:1!important;flex:1!important;width:auto!important;gap:10px!important}
+  .hdr-links{order:1!important;flex:none!important}
   .hdr-logo{width:46px!important;height:46px!important;border-radius:10px!important}
   .hdr-title{font-size:18px!important}
-  .hdr-controls{order:2!important;flex:1!important;width:auto!important;flex-wrap:nowrap!important;gap:6px!important}
+  .hdr-controls{order:2!important;flex:none!important;margin-left:auto!important;width:auto!important;flex-wrap:nowrap!important;gap:6px!important}
   .hdr-btns{order:2!important;flex:none!important;gap:4px!important}
   .right-toolbar{flex-wrap:nowrap!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch!important;scrollbar-width:none!important;padding:8px 12px!important;gap:6px!important}
   .right-toolbar::-webkit-scrollbar{display:none}
@@ -846,6 +847,17 @@ function Inp(_ref7) {
     placeholder: placeholder,
     style: s
   }));
+}
+function HdrIcon({name}) {
+  if (name === 'github') return React.createElement("svg", {viewBox:"0 0 16 16",width:16,height:16,fill:"currentColor"},
+    React.createElement("path", {d:"M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"})
+  );
+  if (name === 'globe') return React.createElement("svg", {viewBox:"0 0 24 24",width:16,height:16,fill:"currentColor"},
+    React.createElement("path", {d:"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"})
+  );
+  return React.createElement("svg", {viewBox:"0 0 24 24",width:16,height:16,fill:"currentColor"},
+    React.createElement("path", {d:"M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"})
+  );
 }
 function Btn(_ref8) {
   let {
@@ -3252,6 +3264,19 @@ function App() {
     },
     className: "hide-mobile"
   })), React.createElement("div", {
+    className: "hdr-links",
+    style: { display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }
+  },
+    [['link1', 'github', 'https://github.com/pqpxo'], ['link2', 'globe', 'https://swakes.co.uk']].map(([k, defIcon, defUrl]) =>
+      React.createElement("a", {
+        key: k,
+        href: settings[k+'Url'] || defUrl,
+        target: "_blank",
+        rel: "noopener noreferrer",
+        style: { display:'flex', alignItems:'center', justifyContent:'center', padding:'6px 10px', borderRadius:6, border:'1px solid var(--bdr)', background:'transparent', color:'var(--dim)', cursor:'pointer', textDecoration:'none', lineHeight:1 }
+      }, React.createElement(HdrIcon, { name: settings[k+'Icon'] || defIcon }))
+    )
+  ), React.createElement("div", {
     className: "hdr-btns",
     style: {
       display: 'flex',
@@ -4844,6 +4869,19 @@ function App() {
         React.createElement("input", { type: 'file', accept: 'image/*', onChange: e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = ev => updSetting('logoData', ev.target.result); r.readAsDataURL(f); }, style: { fontSize: 11, color: 'var(--dim)' } }),
         settings.logoData && React.createElement("button", { onClick: () => updSetting('logoData', ''), style: { background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--dim)', fontSize: 13 } }, "\xD7")
       )
+    ),
+    React.createElement("div", { style: { marginTop: 10 } },
+      React.createElement("div", { style: { fontSize: 10, color: 'var(--dim)', fontFamily: 'var(--sans)', marginBottom: 6 } }, "Header Links"),
+      [['link1', 'github', 'https://github.com/pqpxo'], ['link2', 'globe', 'https://swakes.co.uk']].map(([k, defIcon, defUrl]) =>
+        React.createElement("div", { key: k, style: { display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6, marginBottom: 6, alignItems: 'center' } },
+          React.createElement("select", { value: settings[k+'Icon'] || defIcon, onChange: e => updSetting(k+'Icon', e.target.value), style: { fontSize: 11 } },
+            React.createElement("option", { value: 'github' }, "GitHub"),
+            React.createElement("option", { value: 'globe' }, "Globe"),
+            React.createElement("option", { value: 'link' }, "Link")
+          ),
+          React.createElement("input", { value: settings[k+'Url'] || defUrl, onChange: e => updSetting(k+'Url', e.target.value), placeholder: defUrl, style: { fontSize: 11 } })
+        )
+      )
     )
   ),
   /* ── COLOURS ── */
@@ -4860,7 +4898,7 @@ function App() {
         )
       )
     ),
-    React.createElement("button", { onClick: () => { ['primaryColor','bgColor','surfColor','cardColor','font','title','subtitle','logoData','hostUrl'].forEach(k => updSetting(k, '')); }, style: { marginTop: 10, fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--bdr)', background: 'transparent', cursor: 'pointer', color: 'var(--dim)', fontFamily: 'var(--sans)' } }, "Reset to defaults")
+    React.createElement("button", { onClick: () => { ['primaryColor','bgColor','surfColor','cardColor','font','title','subtitle','logoData','hostUrl','link1Icon','link1Url','link2Icon','link2Url'].forEach(k => updSetting(k, '')); }, style: { marginTop: 10, fontSize: 11, padding: '4px 10px', borderRadius: 6, border: '1px solid var(--bdr)', background: 'transparent', cursor: 'pointer', color: 'var(--dim)', fontFamily: 'var(--sans)' } }, "Reset to defaults")
   ),
   /* ── DEPLOYMENT ── */
   React.createElement("div", { style: { fontSize: 10, color: 'var(--dim)', textTransform: 'uppercase', letterSpacing: '.07em', fontFamily: 'var(--sans)', marginBottom: 10 } }, "Deployment"),
