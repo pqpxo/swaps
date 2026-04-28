@@ -1917,10 +1917,11 @@ function ProfileModal(_ref16) {
   }, "Save"))));
 }
 function ImportModal(_ref17) {
-  let { onImport, onClose, results, onConfirm } = _ref17;
+  let { onImport, onClose, results, onConfirm, logs = [], termStatus = 'idle' } = _ref17;
   const [creds, setCreds] = useState({ host:'', port:'22', username:'root', authType:'password', password:'', privateKey:'' });
   const [loading, setLoading] = useState(false);
   const upd = (k, v) => setCreds(p => ({ ...p, [k]: v }));
+  const logRef = useRef(null);
 
   const SW_KEYS  = ['docker','git','ncdu','htop','tmux','curl','vim','nmap','rsync','unzip','duf','netdata'];
   const SEC_KEYS = ['ufw','fail2ban'];
@@ -1939,13 +1940,18 @@ function ImportModal(_ref17) {
     setSel(init);
   }, [results]);
 
+  React.useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs]);
+
   const detected = results ? [...SW_KEYS, ...SEC_KEYS].filter(k => results[k]) : [];
   const noneDetected = results && detected.length === 0 && !results._hostname;
+  const scanning = termStatus === 'connecting' || termStatus === 'running';
 
   const boxStyle = {
     background:'var(--surf)', border:'1px solid var(--bdr)', borderRadius:12,
-    width:420, maxWidth:'95vw', padding:20, animation:'fadeIn .15s ease',
-    maxHeight:'80vh', overflowY:'auto'
+    width:560, maxWidth:'96vw', padding:20, animation:'fadeIn .15s ease',
+    maxHeight:'90vh', overflowY:'auto', display:'flex', flexDirection:'column', gap:0
   };
   const rowStyle = checked => ({
     display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7,
@@ -1955,6 +1961,32 @@ function ImportModal(_ref17) {
   });
   const labelStyle = { fontSize:12, fontFamily:'var(--sans)', color:'var(--text)', fontWeight:500, flex:1 };
   const dimStyle   = { fontSize:10, color:'var(--dim)', fontFamily:'var(--sans)' };
+
+  const termPane = (logs.length > 0 || scanning) && React.createElement("div", {
+    style:{ marginTop:14, border:'1px solid var(--bdr)', borderRadius:8, overflow:'hidden', flexShrink:0 }
+  },
+    React.createElement("div", { style:{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--bg)', borderBottom:'1px solid var(--bdr)' } },
+      React.createElement("div", { style:{ width:7, height:7, borderRadius:'50%',
+        background: termStatus==='error' ? 'var(--red)' : termStatus==='success' ? 'var(--green)' : '#22d3ee',
+        animation: scanning ? 'blink 1s step-end infinite' : 'none'
+      } }),
+      React.createElement("span", { style:{ fontSize:10, color:'var(--dim)', fontFamily:'var(--sans)' } },
+        termStatus==='connecting' ? 'Connecting…' : termStatus==='running' ? 'Scanning…' :
+        termStatus==='success' ? 'Scan complete' : termStatus==='error' ? 'Error' : 'Idle'
+      )
+    ),
+    React.createElement("div", { ref: logRef, style:{
+      background:'var(--bg)', padding:'8px 12px', maxHeight:200, overflowY:'auto',
+      fontFamily:'var(--mono)', fontSize:11, lineHeight:1.7
+    } },
+      logs.length === 0
+        ? React.createElement("span", { style:{ color:'var(--faint)' } }, 'Connecting to host…')
+        : logs.map((l, i) => React.createElement("div", {
+            key: i,
+            style:{ color: l.type==='stderr' ? 'var(--red)' : lineColor(l.text), whiteSpace:'pre-wrap', wordBreak:'break-word' }
+          }, stripAnsi(l.text)))
+    )
+  );
 
   if (results) {
     return React.createElement("div", { className:"modal-overlay", onClick: e => { if (e.target===e.currentTarget) onClose(); } },
@@ -1989,6 +2021,7 @@ function ImportModal(_ref17) {
             )
           )
         ),
+        termPane,
         React.createElement("div", { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:14 } },
           React.createElement(Btn, { onClick:onClose }, "Cancel"),
           React.createElement(Btn, { onClick:() => onConfirm(sel), variant:"primary", disabled:Object.keys(sel).length===0 }, "Import Selected")
@@ -2006,10 +2039,15 @@ function ImportModal(_ref17) {
         React.createElement(Inp, { label:"Port",     value:creds.port, onChange:v => upd('port',v), placeholder:"22" })
       ),
       React.createElement(Inp, { label:"Username", value:creds.username, onChange:v => upd('username',v), placeholder:"root" }),
-      React.createElement(Inp, { label:"Password", value:creds.password, onChange:v => upd('password',v), placeholder:"\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022", type:"password" }),
-      React.createElement("div", { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:8 } },
+      React.createElement(Inp, { label:"Password", value:creds.password, onChange:v => upd('password',v), placeholder:"••••••••", type:"password" }),
+      termPane,
+      React.createElement("div", { style:{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:12 } },
         React.createElement(Btn, { onClick:onClose }, "Cancel"),
-        React.createElement(Btn, { onClick:() => { setLoading(true); onImport(creds); }, variant:"primary", disabled:loading||!creds.host }, loading ? 'Scanning…' : 'Scan Host')
+        React.createElement(Btn, {
+          onClick:() => { setLoading(true); onImport(creds); },
+          variant:"primary",
+          disabled: loading || scanning || !creds.host
+        }, scanning ? 'Scanning…' : loading ? 'Connecting…' : 'Scan Host')
       )
     )
   );
@@ -2732,6 +2770,8 @@ function App() {
   }, [history]);
   const [showImport, setShowImport] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [importLogs, setImportLogs] = useState([]);
+  const [importStatus, setImportStatus] = useState('idle');
   const [showVault, setShowVault] = useState(false);
   const [vaultData, setVaultData] = useState(null);
   const [vaultPw, setVaultPw] = useState('');
@@ -2977,21 +3017,31 @@ function App() {
     }));
   }
   function importFromHost(creds) {
+    setImportLogs([]);
+    setImportStatus('connecting');
     const ws = new WebSocket(`ws://${window.location.host}/ws`);
-    ws.onopen = () => ws.send(JSON.stringify({
-      type: 'import',
-      ...creds
-    }));
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'import', ...creds }));
     ws.onmessage = e => {
       const msg = JSON.parse(e.data);
+      if (['log', 'stdout', 'stderr'].includes(msg.type)) {
+        setImportStatus('running');
+        const nl = msg.data.split(/\r?\n/).filter(l => l.length).map(l => ({ text: l, type: msg.type }));
+        setImportLogs(p => [...p, ...nl]);
+      }
       if (msg.type === 'importResults') {
+        setImportStatus('success');
         setImportResults(msg.data);
         ws.close();
       }
       if (msg.type === 'error') {
-        alert('Import error: ' + msg.data);
+        setImportStatus('error');
+        setImportLogs(p => [...p, { text: msg.data, type: 'stderr' }]);
         ws.close();
       }
+    };
+    ws.onerror = () => {
+      setImportStatus('error');
+      setImportLogs(p => [...p, { text: 'WebSocket connection failed', type: 'stderr' }]);
     };
   }
   function applyImport(selected) {
@@ -3152,9 +3202,11 @@ function App() {
     onUnlock: onVaultUnlock
   }), showImport && React.createElement(ImportModal, {
     onImport: importFromHost,
-    onClose: () => { setShowImport(false); setImportResults(null); },
+    onClose: () => { setShowImport(false); setImportResults(null); setImportLogs([]); setImportStatus('idle'); },
     results: importResults,
-    onConfirm: applyImport
+    onConfirm: applyImport,
+    logs: importLogs,
+    termStatus: importStatus
   }), showShare && React.createElement(ShareModal, {
     url: shareUrl,
     onClose: () => setShowShare(false)

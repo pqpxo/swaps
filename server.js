@@ -91,6 +91,67 @@ wss.on('connection', (ws) => {
       try { ssh.connect(opts); } catch (e) { emit('error', e.message); }
     }
 
+    if (msg.type === 'import') {
+      const { host, port, username, password, privateKey } = msg;
+      if (ssh) try { ssh.end(); } catch {}
+      ssh = new Client();
+      activeStream = null;
+
+      emit('log', `\x1b[36m▸ Connecting to ${username}@${host}:${port || 22}...\x1b[0m\r\n`);
+
+      ssh.on('ready', () => {
+        emit('log', `\x1b[32m✓ Connected\x1b[0m\r\n`);
+        emit('log', `\x1b[36m▸ Scanning installed packages...\x1b[0m\r\n`);
+
+        const script = [
+          'HN=$(hostname -f 2>/dev/null || hostname); echo "_hostname=$HN"',
+          'for p in docker git ncdu htop tmux curl vim nmap rsync unzip duf netdata; do',
+          '  if command -v $p &>/dev/null; then',
+          '    echo "$p=1"',
+          '  else',
+          '    echo "$p=0"',
+          '  fi',
+          'done',
+          'if command -v ufw &>/dev/null; then echo "ufw=1"; else echo "ufw=0"; fi',
+          'if command -v fail2ban-client &>/dev/null; then echo "fail2ban=1"; else echo "fail2ban=0"; fi',
+        ].join('\n');
+
+        ssh.exec(script, (err, stream) => {
+          if (err) { emit('error', err.message); ssh.end(); return; }
+          let out = '';
+          stream.on('data', d => {
+            const t = d.toString();
+            out += t;
+            emit('log', t);
+          });
+          stream.stderr.on('data', d => emit('stderr', d.toString()));
+          stream.on('close', () => {
+            const detected = {};
+            out.split('\n').forEach(line => {
+              const eq = line.indexOf('=');
+              if (eq === -1) return;
+              const k = line.slice(0, eq).trim();
+              const v = line.slice(eq + 1).trim();
+              if (k === '_hostname') detected._hostname = v;
+              else if (k) detected[k] = v === '1';
+            });
+            emit('log', '\r\n\x1b[32m✓ Scan complete\x1b[0m\r\n');
+            emit('importResults', detected);
+            ssh.end();
+          });
+        });
+      });
+
+      ssh.on('error', err => emit('error', `\x1b[31m✗ ${err.message}\x1b[0m\r\n`));
+
+      const opts = {
+        host, port: +(port || 22), username,
+        readyTimeout: 20000,
+        ...(privateKey ? { privateKey } : { password }),
+      };
+      try { ssh.connect(opts); } catch (e) { emit('error', e.message); }
+    }
+
     if (msg.type === 'input' && activeStream) {
       activeStream.write(msg.data);
     }
