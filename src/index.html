@@ -363,7 +363,9 @@ function generateScript(_ref) {
     'nmap': 'nmap',
     'rsync': 'rsync',
     'unzip': 'unzip',
-    'duf': 'duf'
+    'duf': 'duf',
+    'python3': 'python3',
+    'nodejs': 'nodejs'
   };
   Object.entries(simplePkgs).forEach(_ref2 => {
     var _sw$k;
@@ -1923,10 +1925,11 @@ function ImportModal(_ref17) {
   const upd = (k, v) => setCreds(p => ({ ...p, [k]: v }));
   const logRef = useRef(null);
 
-  const SW_KEYS  = ['docker','git','ncdu','htop','tmux','curl','vim','nmap','rsync','unzip','duf','netdata'];
+  const SW_KEYS  = ['docker','git','ncdu','htop','tmux','curl','vim','nmap','rsync','unzip','duf','netdata','python3','nodejs'];
   const SEC_KEYS = ['ufw','fail2ban'];
   const LABELS   = { docker:'Docker & Docker Compose', git:'Git', ncdu:'ncdu', htop:'htop', tmux:'tmux',
     curl:'curl', vim:'Vim', nmap:'nmap', rsync:'rsync', unzip:'unzip', duf:'duf', netdata:'Netdata',
+    python3:'Python 3', nodejs:'Node.js',
     ufw:'UFW Firewall', fail2ban:'Fail2ban' };
 
   const [sel, setSel] = useState({});
@@ -1936,7 +1939,7 @@ function ImportModal(_ref17) {
     if (!results) return;
     const init = {};
     if (results._hostname) init._hostname = results._hostname;
-    [...SW_KEYS, ...SEC_KEYS].forEach(k => { if (results[k]) init[k] = true; });
+    [...SW_KEYS, ...SEC_KEYS].forEach(k => { if (results[k] === false) init[k] = true; });
     setSel(init);
   }, [results]);
 
@@ -1944,8 +1947,8 @@ function ImportModal(_ref17) {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [logs]);
 
-  const detected = results ? [...SW_KEYS, ...SEC_KEYS].filter(k => results[k]) : [];
-  const noneDetected = results && detected.length === 0 && !results._hostname;
+  const detected = results ? [...SW_KEYS, ...SEC_KEYS].filter(k => results[k] === false) : [];
+  const noneDetected = results && detected.length === 0;
   const scanning = termStatus === 'connecting' || termStatus === 'running';
 
   const boxStyle = {
@@ -1991,10 +1994,10 @@ function ImportModal(_ref17) {
   if (results) {
     return React.createElement("div", { className:"modal-overlay", onClick: e => { if (e.target===e.currentTarget) onClose(); } },
       React.createElement("div", { style: boxStyle },
-        React.createElement("div", { style:{ fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--sans)', marginBottom:2 } }, "Review Detected Items"),
+        React.createElement("div", { style:{ fontSize:14, fontWeight:600, color:'var(--text)', fontFamily:'var(--sans)', marginBottom:2 } }, "Software to Install"),
         React.createElement("div", { style:{ fontSize:11, color:'var(--dim)', fontFamily:'var(--sans)', marginBottom:14 } },
-          noneDetected ? "Nothing recognisable was detected on this host." :
-          "Select which items to import. Unchecked items will be left unchanged."
+          noneDetected ? "All supported software is already installed on this host." :
+          "Select software to add to your provisioning script. Already-installed items are excluded."
         ),
         results._hostname && React.createElement("div", { style:{ ...rowStyle(!!sel._hostname), marginBottom:10 }, onClick: () => togSel('_hostname') },
           React.createElement("input", { type:'checkbox', checked:!!sel._hostname, onChange:() => togSel('_hostname'), style:{ accentColor:'var(--teal)', flexShrink:0 } }),
@@ -2004,16 +2007,18 @@ function ImportModal(_ref17) {
           )
         ),
         detected.length > 0 && React.createElement(React.Fragment, null,
-          React.createElement("div", { style:{ ...dimStyle, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6 } }, "Software"),
-          SW_KEYS.filter(k => results[k]).map(k =>
-            React.createElement("div", { key:k, style:rowStyle(!!sel[k]), onClick:() => togSel(k) },
-              React.createElement("input", { type:'checkbox', checked:!!sel[k], onChange:() => togSel(k), style:{ accentColor:'var(--teal)', flexShrink:0 } }),
-              React.createElement("div", { style:labelStyle }, LABELS[k] || k)
+          SW_KEYS.some(k => results[k] === false) && React.createElement(React.Fragment, null,
+            React.createElement("div", { style:{ ...dimStyle, textTransform:'uppercase', letterSpacing:'.07em', marginBottom:6 } }, "Software"),
+            SW_KEYS.filter(k => results[k] === false).map(k =>
+              React.createElement("div", { key:k, style:rowStyle(!!sel[k]), onClick:() => togSel(k) },
+                React.createElement("input", { type:'checkbox', checked:!!sel[k], onChange:() => togSel(k), style:{ accentColor:'var(--teal)', flexShrink:0 } }),
+                React.createElement("div", { style:labelStyle }, LABELS[k] || k)
+              )
             )
           ),
-          SEC_KEYS.some(k => results[k]) && React.createElement(React.Fragment, null,
+          SEC_KEYS.some(k => results[k] === false) && React.createElement(React.Fragment, null,
             React.createElement("div", { style:{ ...dimStyle, textTransform:'uppercase', letterSpacing:'.07em', margin:'10px 0 6px' } }, "Security"),
-            SEC_KEYS.filter(k => results[k]).map(k =>
+            SEC_KEYS.filter(k => results[k] === false).map(k =>
               React.createElement("div", { key:k, style:rowStyle(!!sel[k]), onClick:() => togSel(k) },
                 React.createElement("input", { type:'checkbox', checked:!!sel[k], onChange:() => togSel(k), style:{ accentColor:'var(--teal)', flexShrink:0 } }),
                 React.createElement("div", { style:labelStyle }, LABELS[k] || k)
@@ -2434,6 +2439,14 @@ function App() {
       }
     },
     netdata: {
+      enabled: false,
+      config: {}
+    },
+    python3: {
+      enabled: false,
+      config: {}
+    },
+    nodejs: {
       enabled: false,
       config: {}
     },
@@ -3050,8 +3063,8 @@ function App() {
     if (selected._hostname) setHostname(selected._hostname);
     setSw(p => {
       const n = { ...p };
-      ['docker', 'git', 'ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'netdata'].forEach(k => {
-        if (selected[k] !== undefined && n[k]) n[k] = { ...n[k], enabled: selected[k] };
+      ['docker', 'git', 'ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'netdata', 'python3', 'nodejs'].forEach(k => {
+        if (selected[k] && n[k]) n[k] = { ...n[k], enabled: true };
       });
       return n;
     });
@@ -3604,6 +3617,14 @@ function App() {
     onToggle: () => togSw('nmap'),
     expanded: false
   }), React.createElement(SwItem, {
+    key: "nodejs",
+    label: "Node.js",
+    desc: "JavaScript runtime (LTS)",
+    icon: "\u25C8",
+    on: sw.nodejs.enabled,
+    onToggle: () => togSw('nodejs'),
+    expanded: false
+  }), React.createElement(SwItem, {
     label: "Portainer CE",
     desc: "Docker web management UI",
     icon: "\u229B",
@@ -3627,6 +3648,14 @@ function App() {
       color: 'blue',
       label: 'metrics'
     }
+  }), React.createElement(SwItem, {
+    key: "python3",
+    label: "Python 3",
+    desc: "Python 3 runtime",
+    icon: "◈",
+    on: sw.python3.enabled,
+    onToggle: () => togSw('python3'),
+    expanded: false
   }), React.createElement(SwItem, {
     key: "rsync",
     label: "rsync",

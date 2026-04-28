@@ -112,6 +112,8 @@ wss.on('connection', (ws) => {
           '    echo "$p=0"',
           '  fi',
           'done',
+          'if command -v python3 &>/dev/null; then echo "python3=1"; else echo "python3=0"; fi',
+          'if command -v node &>/dev/null; then echo "nodejs=1"; else echo "nodejs=0"; fi',
           'if command -v ufw &>/dev/null; then echo "ufw=1"; else echo "ufw=0"; fi',
           'if command -v fail2ban-client &>/dev/null; then echo "fail2ban=1"; else echo "fail2ban=0"; fi',
         ].join('\n');
