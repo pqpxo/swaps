@@ -318,6 +318,25 @@ function buildSSHMenu(bc) {
   }];
   return buildMenuBlock(c1, c2, items, loginDir);
 }
+
+const MEDIA_CONTAINERS = [
+  {key:'sonarr',      label:'Sonarr',         desc:'TV show management',      image:'lscr.io/linuxserver/sonarr:latest',          port:'8989:8989',   vol:'/opt/sonarr:/config'},
+  {key:'radarr',      label:'Radarr',         desc:'Movie management',         image:'lscr.io/linuxserver/radarr:latest',          port:'7878:7878',   vol:'/opt/radarr:/config'},
+  {key:'seerr',       label:'Overseerr',      desc:'Media request management', image:'sctx/overseerr:latest',                      port:'5055:5055',   vol:'/opt/seerr:/app/config'},
+  {key:'prowlarr',    label:'Prowlarr',       desc:'Indexer manager',          image:'lscr.io/linuxserver/prowlarr:latest',        port:'9696:9696',   vol:'/opt/prowlarr:/config'},
+  {key:'tracearr',    label:'Tracearr',       desc:'Arr stack config sync',    image:'ghcr.io/recyclarr/recyclarr:latest',         port:'',            vol:'/opt/tracearr:/config'},
+  {key:'tautulli',    label:'Tautulli',       desc:'Plex statistics',          image:'lscr.io/linuxserver/tautulli:latest',        port:'8181:8181',   vol:'/opt/tautulli:/config'},
+  {key:'sabnzbd',     label:'SABnzbd',        desc:'Usenet downloader',        image:'lscr.io/linuxserver/sabnzbd:latest',         port:'8080:8080',   vol:'/opt/sabnzbd:/config'},
+  {key:'qbittorrent', label:'qBittorrent',    desc:'BitTorrent client',        image:'lscr.io/linuxserver/qbittorrent:latest',     port:'8090:8090',   vol:'/opt/qbittorrent:/config'},
+  {key:'transmission',label:'Transmission',   desc:'BitTorrent client',        image:'lscr.io/linuxserver/transmission:latest',    port:'9091:9091',   vol:'/opt/transmission:/config'},
+  {key:'bazarr',      label:'Bazarr',         desc:'Subtitle management',      image:'lscr.io/linuxserver/bazarr:latest',          port:'6767:6767',   vol:'/opt/bazarr:/config'},
+  {key:'cleanuparr',  label:'Cleanuparr',     desc:'Media library cleanup',    image:'ghcr.io/cleanuparr/cleanuparr:latest',       port:'11011:11011', vol:'/opt/cleanuparr:/config'},
+  {key:'lidarr',      label:'Lidarr',         desc:'Music management',         image:'lscr.io/linuxserver/lidarr:latest',          port:'8686:8686',   vol:'/opt/lidarr:/config'},
+  {key:'tdarr',       label:'Tdarr',          desc:'Media transcoding',        image:'ghcr.io/haveagitgat/tdarr:latest',           port:'8265:8265',   vol:'/opt/tdarr:/app/server'},
+  {key:'whisparr',    label:'Whisparr',       desc:'Adult content manager',    image:'ghcr.io/whisparr/whisparr:nightly',          port:'6969:6969',   vol:'/opt/whisparr:/config'},
+  {key:'flaresolverr',label:'FlareSolverr',   desc:'Cloudflare bypass proxy',  image:'ghcr.io/flaresolverr/flaresolverr:latest',   port:'8191:8191',   vol:''},
+  {key:'kapowarr',    label:'Kapowarr',       desc:'Comics management',        image:'mrcas3/kapowarr:latest',                     port:'5656:5656',   vol:'/opt/kapowarr:/app/db'},
+];
 function generateScript(_ref) {
   var _sw$docker, _sw$git, _sw$neofetch, _sw$portainer, _sw$wazuh, _sw$netdata, _sw$prometheus;
   let {
@@ -511,6 +530,32 @@ function generateScript(_ref) {
       add(`${DR}sudo pip3 install glances[web] 2>/dev/null || true`);
     }
     add('ok "Glances ready"');
+  }
+  var _sw$mediaServer;
+  if ((_sw$mediaServer = sw.mediaServer) !== null && _sw$mediaServer !== void 0 && _sw$mediaServer.enabled) {
+    sec_('Media Server Stack');
+    if (!sw.docker || !sw.docker.enabled) {
+      add('warn "Media Server Stack requires Docker — install Docker first"');
+    }
+    const mc = sw.mediaServer.config;
+    const ctrs = mc.containers || {};
+    if (mc.mediaApp === 'plex') {
+      add('info "Starting Plex Media Server..."',
+        `${DR}docker run -d --name=plex --restart=unless-stopped --network=host -e TZ=UTC -e PLEX_CLAIM="${mc.plexClaim || ''}" -v /opt/plex/config:/config -v /data/media:/data plexinc/pms-docker:latest`,
+        'ok "Plex on :32400"');
+    } else {
+      add('info "Starting Jellyfin..."',
+        `${DR}docker run -d --name=jellyfin --restart=unless-stopped -p 8096:8096 -p 8920:8920 -v /opt/jellyfin/config:/config -v /data/media:/media jellyfin/jellyfin:latest`,
+        'ok "Jellyfin on :8096"');
+    }
+    MEDIA_CONTAINERS.forEach(c => {
+      if (!ctrs[c.key]) return;
+      const volArg = c.vol ? `-v ${c.vol}` : '';
+      const portArg = c.port ? `-p ${c.port}` : '';
+      add(`info "Starting ${c.label}..."`,
+        `${DR}docker run -d --name=${c.key} --restart=unless-stopped -e PUID=1000 -e PGID=1000 -e TZ=UTC ${portArg} ${volArg} ${c.image}`.replace(/  +/g,' ').trim(),
+        `ok "${c.label} ready"`);
+    });
   }
   if (infra.cronJobs.enabled && infra.cronJobs.config.jobs.length > 0) {
     sec_('Cron Jobs');
@@ -1143,7 +1188,10 @@ function SwLogo({name, distro}) {
     netdata: "M14.764 21.827H9.922L0 2.173h14.084c5.476.01 9.913 4.565 9.916 10.183-.009 5.235-4.14 9.47-9.238 9.47z",
     portainer: "M12.504 0v1.023l-.01-.015-6.106 3.526H3.417v.751h5.359v3.638h1.942V5.284h1.786v10.416c.027 0 .54-.01.751.091V5.285h.531v10.608c.293.147.55.312.751.54V5.286h6.046v-.75h-1.267l-6.061-3.5V0zm0 1.87v2.664H7.889zm.751.031l4.56 2.633h-4.56zM9.142 5.285h1.21v1.686h-1.21zm-4.736 2.73v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm-2.19 2.171v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm2.18 0v1.951h1.942v-1.95zM4.36 12.43a3.73 3.73 0 00-.494 1.851c0 1.227.604 2.308 1.52 2.986.239-.064.477-.1.724-.11.1 0 .165.01.266.019.284-1.191 1.383-1.988 2.665-1.988.724 0 1.438.201 1.924.668.229-.476.302-1.007.302-1.575 0-.65-.165-1.292-.494-1.85zm4.828 3.16c-1.21 0-2.226.844-2.492 1.97a.922.922 0 00-.275-.009 2.559 2.559 0 00-2.564 2.556 2.565 2.565 0 003.096 2.5A2.579 2.579 0 009.233 24c.862 0 1.622-.43 2.09-1.081a2.557 2.557 0 004.186-1.97c0-.567-.193-1.099-.504-1.52a2.557 2.557 0 00-3.866-2.94 2.574 2.574 0 00-1.951-.898z",
     prometheus: "M12 0C5.373 0 0 5.372 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-6.628-5.373-12-12-12zm0 22.46c-1.885 0-3.414-1.26-3.414-2.814h6.828c0 1.553-1.528 2.813-3.414 2.813zm5.64-3.745H6.36v-2.046h11.28v2.046zm-.04-3.098H6.391c-.037-.043-.075-.086-.111-.13-1.155-1.401-1.427-2.133-1.69-2.879-.005-.025 1.4.287 2.395.511 0 0 .513.119 1.262.255-.72-.843-1.147-1.915-1.147-3.01 0-2.406 1.845-4.508 1.18-6.207.648.053 1.34 1.367 1.387 3.422.689-.951.977-2.69.977-3.755 0-1.103.727-2.385 1.454-2.429-.648 1.069.168 1.984.894 4.256.272.854.237 2.29.447 3.201.07-1.892.395-4.652 1.595-5.605-.529 1.2.079 2.702.494 3.424.671 1.164 1.078 2.047 1.078 3.716a4.642 4.642 0 01-1.11 2.996c.792-.149 1.34-.283 1.34-.283l2.573-.502s-.374 1.538-1.81 3.019z",
-    nginx: "M12 0L1.605 6v12L12 24l10.395-6V6zm-2.432 15.214-.9.519-.993-1.723V9.927h1.208v4.05l.685 1.237zm4.864 0-.9.519-.685-1.237V9.927h1.208v4.05l.993 1.723-.616.519z"
+    nginx: "M12 0L1.605 6v12L12 24l10.395-6V6zm-2.432 15.214-.9.519-.993-1.723V9.927h1.208v4.05l.685 1.237zm4.864 0-.9.519-.685-1.237V9.927h1.208v4.05l.993 1.723-.616.519z",
+    plex: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-.72 17.28L7.15 12l4.13-5.28h5.57L12.72 12l4.13 5.28z",
+    jellyfin: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-1.5 6h3v8.25a2.25 2.25 0 01-4.5 0v-.75h1.5v.75a.75.75 0 001.5 0V6z",
+    mediaserver: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
   };
   const OS = {
     ubuntu: "M17.61.455a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zM12.92.8C8.923.777 5.137 2.941 3.148 6.451a4.5 4.5 0 0 1 .26-.007 4.92 4.92 0 0 1 2.585.737A8.316 8.316 0 0 1 12.688 3.6 4.944 4.944 0 0 1 13.723.834 11.008 11.008 0 0 0 12.92.8zm9.226 4.994a4.915 4.915 0 0 1-1.918 2.246 8.36 8.36 0 0 1-.273 8.303 4.89 4.89 0 0 1 1.632 2.54 11.156 11.156 0 0 0 .559-13.089zM3.41 7.932A3.41 3.41 0 0 0 0 11.342a3.41 3.41 0 0 0 3.41 3.409 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zm2.027 7.866a4.908 4.908 0 0 1-2.915.358 11.1 11.1 0 0 0 7.991 6.698 11.234 11.234 0 0 0 2.422.249 4.879 4.879 0 0 1-.999-2.85 8.484 8.484 0 0 1-.836-.136 8.304 8.304 0 0 1-5.663-4.32zm11.405.928a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41z",
@@ -2555,6 +2603,19 @@ function App() {
       config: {
         webMode: false
       }
+    },
+    mediaServer: {
+      enabled: false,
+      config: {
+        mediaApp: 'plex',
+        plexClaim: '',
+        containers: {
+          sonarr: true, radarr: true, seerr: true, prowlarr: true,
+          tracearr: true, tautulli: true, sabnzbd: true, qbittorrent: true,
+          transmission: true, bazarr: true, cleanuparr: true, lidarr: true,
+          tdarr: true, whisparr: true, flaresolverr: true, kapowarr: true
+        }
+      }
     }
   });
   const togSw = k => setSw(p => ({
@@ -3823,7 +3884,107 @@ function App() {
     value: sw.wazuh.config.managerPort,
     onChange: v => updSw('wazuh', 'managerPort', v),
     placeholder: "1514"
-  }))), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+  }), React.createElement(SwItem, {
+    label: "NGINX",
+    desc: "High-performance web server",
+    icon: React.createElement(SwLogo, {name:'nginx', distro}),
+    on: sw.nginx.enabled,
+    onToggle: () => togSw('nginx'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "NGINX Proxy Manager",
+    desc: "Reverse proxy with SSL UI (Docker)",
+    icon: React.createElement(SwLogo, {name:'nginx', distro}),
+    depWarn: sw.nginxProxyManager.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
+    on: sw.nginxProxyManager.enabled,
+    onToggle: () => togSw('nginxProxyManager'),
+    expanded: expanded.nginxProxyManager,
+    onExpand: () => togExp('nginxProxyManager')
+  }, React.createElement(Inp, {
+    label: "Admin UI port",
+    value: sw.nginxProxyManager.config.adminPort,
+    onChange: v => updSw('nginxProxyManager', 'adminPort', v),
+    placeholder: "81"
+  })), React.createElement(SwItem, {
+    label: "Glances",
+    desc: "System resource monitor",
+    icon: React.createElement(SwLogo, {name:'glances', distro}),
+    on: sw.glances.enabled,
+    onToggle: () => togSw('glances'),
+    expanded: expanded.glances,
+    onExpand: () => togExp('glances')
+  }, React.createElement(Check, {
+    label: "Enable web interface",
+    checked: sw.glances.config.webMode,
+    onChange: v => updSw('glances', 'webMode', v)
+  })), React.createElement(SwItem, {
+    label: "Media Server Stack",
+    desc: "Plex/Jellyfin + *arr suite + downloaders",
+    icon: React.createElement(SwLogo, {name: sw.mediaServer.enabled && sw.mediaServer.config.mediaApp === 'jellyfin' ? 'jellyfin' : 'plex', distro}),
+    depWarn: sw.mediaServer.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
+    on: sw.mediaServer.enabled,
+    onToggle: () => togSw('mediaServer'),
+    expanded: expanded.mediaServer,
+    onExpand: () => togExp('mediaServer')
+  },
+    React.createElement("div", {style:{marginBottom:10}},
+      React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.06em'}}, "Media Application"),
+      React.createElement("div", {style:{display:'flex',gap:16}},
+        ['plex','jellyfin'].map(app =>
+          React.createElement("label", {key:app, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,color:'var(--text)'}},
+            React.createElement("input", {type:'radio', name:'mediaApp', value:app,
+              checked: sw.mediaServer.config.mediaApp === app,
+              onChange: () => updSw('mediaServer','mediaApp',app),
+              style:{accentColor:'var(--teal)'}}),
+            app === 'plex' ? 'Plex' : 'Jellyfin'
+          )
+        )
+      )
+    ),
+    sw.mediaServer.config.mediaApp === 'plex' && React.createElement(Inp, {
+      label: "Plex Claim Token (optional)",
+      value: sw.mediaServer.config.plexClaim,
+      onChange: v => updSw('mediaServer','plexClaim',v),
+      placeholder: "claim-xxxx  ·  from plex.tv/claim"
+    }),
+    React.createElement("div", {style:{marginTop:10}},
+      React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
+        React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',textTransform:'uppercase',letterSpacing:'0.06em'}}, "Docker Containers"),
+        React.createElement("div", {style:{display:'flex',gap:4}},
+          React.createElement(Btn, {
+            style:{fontSize:10,padding:'2px 8px'},
+            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,true])))
+          }, "All"),
+          React.createElement(Btn, {
+            style:{fontSize:10,padding:'2px 8px'},
+            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,false])))
+          }, "None")
+        )
+      ),
+      React.createElement("div", {style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 16px'}},
+        MEDIA_CONTAINERS.map(c =>
+          React.createElement("label", {key:c.key, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'3px 0',borderRadius:4}},
+            React.createElement("div", {
+              onClick: () => updSw('mediaServer','containers',{...sw.mediaServer.config.containers,[c.key]:!sw.mediaServer.config.containers[c.key]}),
+              style:{
+                width:14,height:14,flexShrink:0,
+                border:`1.5px solid ${sw.mediaServer.config.containers[c.key]?'var(--teal)':'var(--bdr)'}`,
+                borderRadius:3,
+                background:sw.mediaServer.config.containers[c.key]?'var(--teal)':'transparent',
+                display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'
+              }
+            },
+              sw.mediaServer.config.containers[c.key] && React.createElement("svg",{viewBox:"0 0 12 12",width:8,height:8,fill:"none",stroke:"#fff",strokeWidth:2},React.createElement("polyline",{points:"2,6 5,9 10,3"}))
+            ),
+            React.createElement("div", null,
+              React.createElement("div", {style:{fontSize:12,color:'var(--text)',lineHeight:1.2}}, c.label),
+              React.createElement("div", {style:{fontSize:10,color:'var(--dim)'}}, c.desc)
+            )
+          )
+        )
+      )
+    )
+  ))), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
     label: ".bashrc Config",
     desc: "Aliases \xB7 PS1 \xB7 SSH Menu",
     icon: "\u2261",
