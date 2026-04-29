@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Environment
+
+```
+CLAUDE_STREAM_IDLE_TIMEOUT_MS=1800000
+```
+
 ## Stream Timeout Prevention
 
 1. Do each numbered task ONE AT A TIME. Complete one task fully,
