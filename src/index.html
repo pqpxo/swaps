@@ -3884,7 +3884,7 @@ function App() {
     value: sw.wazuh.config.managerPort,
     onChange: v => updSw('wazuh', 'managerPort', v),
     placeholder: "1514"
-  }), React.createElement(SwItem, {
+  })), React.createElement(SwItem, {
     label: "NGINX",
     desc: "High-performance web server",
     icon: React.createElement(SwLogo, {name:'nginx', distro}),
@@ -3984,7 +3984,7 @@ function App() {
         )
       )
     )
-  ))), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+  )), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
     label: ".bashrc Config",
     desc: "Aliases \xB7 PS1 \xB7 SSH Menu",
     icon: "\u2261",
