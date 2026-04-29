@@ -1,23 +1,8 @@
-# ── SWAPS v2 ─────────────────────────────────────────────────────
-# Multi-stage build:
-#   Stage 1 (builder) — compiles src/index.html (JSX) → public/index.html
-#   Stage 2 (runtime) — serves the compiled public/ with production deps only
-#
-# IMPORTANT: Edit src/index.html (source). Never edit public/index.html directly.
+# ── SWAPS ────────────────────────────────────────────────────────
+# src/index.html is pre-compiled (React.createElement, no JSX runtime).
+# public/index.html is the compiled copy committed alongside src/.
+# No Babel build step needed — copy public/ directly.
 
-# ── Stage 1: Build ───────────────────────────────────────────────
-FROM node:20-alpine AS builder
-
-WORKDIR /build
-
-COPY package*.json ./
-RUN npm install
-
-COPY src/ src/
-COPY build.js .
-RUN node build.js
-
-# ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM node:20-alpine
 
 WORKDIR /app
@@ -26,7 +11,7 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY server.js .
-COPY --from=builder /build/public/ public/
+COPY public/ public/
 
 RUN addgroup -g 1001 -S appuser && \
     adduser -S -u 1001 -G appuser appuser && \
