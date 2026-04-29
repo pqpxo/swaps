@@ -340,11 +340,15 @@ function generateScript(_ref) {
   };
   const sec_ = t => add('', `# ${'─'.repeat(56)}`, `# ${t}`, `# ${'─'.repeat(56)}`);
   const piModel = PI_MODELS.find(m => m.id === distro.piModel);
-  const osLabel = distro.type === 'ubuntu' ? 'Ubuntu' : distro.type === 'debian' ? 'Debian' : `Raspberry Pi OS (${(piModel === null || piModel === void 0 ? void 0 : piModel.label) || distro.piModel})`;
+  const osLabel = distro.type === 'ubuntu' ? 'Ubuntu' : distro.type === 'debian' ? 'Debian' : isRaspi ? `Raspberry Pi OS (${(piModel?.label) || distro.piModel})` : isFedora ? 'Fedora' : isArch ? 'Arch Linux' : isAlpine ? 'Alpine Linux' : 'Ubuntu';
   const isDebian = distro.type === 'debian';
   const isRaspi = distro.type === 'raspbian';
+  const isFedora = distro.type === 'fedora';
+  const isArch = distro.type === 'arch';
+  const isAlpine = distro.type === 'alpine';
+  const isAptBased = !isFedora && !isArch && !isAlpine;
   const piArch = (PI_MODELS.find(m => m.id === distro.piModel) || {arch:'arm64'}).arch;
-  add('#!/usr/bin/env bash', `# ${'═'.repeat(58)}`, `#  SWAPS  ·  ${hostname || 'unnamed-host'}  ·  ${osLabel}`, `#  Generated: $(date '+%Y-%m-%d %H:%M:%S')`, dryRun ? '#  ⚠ DRY RUN — commands prefixed with echo' : '', `# ${'═'.repeat(58)}`, '', 'set -euo pipefail', '', 'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"', 'info() { echo -e "${CYN}▸ ${RST}$*"; }', 'ok()   { echo -e "${GRN}✓ ${RST}$*"; }', 'warn() { echo -e "${YLW}⚠ ${RST}$*"; }', '', 'if   command -v apt-get &>/dev/null; then PM=apt-get', 'elif command -v dnf    &>/dev/null; then PM=dnf', 'else PM=yum; fi', ...(isRaspi ? ["ARCH=$(dpkg --print-architecture)", `info "Architecture: \${ARCH}"`] : []), `info "OS: ${osLabel}"`, 'info "Updating package index..."', `${DR}sudo $PM update -y -qq`);
+  add('#!/usr/bin/env bash', `# ${'═'.repeat(58)}`, `#  SWAPS  ·  ${hostname || 'unnamed-host'}  ·  ${osLabel}`, `#  Generated: $(date '+%Y-%m-%d %H:%M:%S')`, dryRun ? '#  ⚠ DRY RUN — commands prefixed with echo' : '', `# ${'═'.repeat(58)}`, '', 'set -euo pipefail', '', 'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"', 'info() { echo -e "${CYN}▸ ${RST}$*"; }', 'ok()   { echo -e "${GRN}✓ ${RST}$*"; }', 'warn() { echo -e "${YLW}⚠ ${RST}$*"; }', '', 'if   command -v apt-get &>/dev/null; then PM=apt-get', 'elif command -v dnf    &>/dev/null; then PM=dnf', 'elif command -v pacman &>/dev/null; then PM=pacman', 'elif command -v apk    &>/dev/null; then PM=apk', 'else PM=yum; fi', ...(isRaspi ? ["ARCH=$(dpkg --print-architecture)", `info "Architecture: \${ARCH}"`] : []), `info "OS: ${osLabel}"`, 'info "Updating package index..."', `${DR}sudo $PM update -y -qq`);
   if (infra.aptRepos.enabled && infra.aptRepos.config.repos.length > 0) {
     sec_('Custom APT Repositories');
     infra.aptRepos.config.repos.filter(r => r.line.trim()).forEach(r => {
@@ -391,6 +395,21 @@ function generateScript(_ref) {
         `${DR}sudo apt-get update -qq`,
         `${DR}sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`,
         `${DR}sudo systemctl enable --now docker`);
+    } else if (isFedora) {
+      add('info "Installing Docker (Fedora)..."',
+        `${DR}sudo dnf -y install dnf-plugins-core`,
+        `${DR}sudo dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo`,
+        `${DR}sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`,
+        `${DR}sudo systemctl enable --now docker`);
+    } else if (isArch) {
+      add('info "Installing Docker (Arch)..."',
+        `${DR}sudo pacman -S --noconfirm docker docker-compose`,
+        `${DR}sudo systemctl enable --now docker`);
+    } else if (isAlpine) {
+      add('info "Installing Docker (Alpine)..."',
+        `${DR}sudo apk add docker docker-cli-compose`,
+        `${DR}sudo rc-update add docker default`,
+        `${DR}sudo service docker start`);
     } else {
       add('info "Installing Docker (Ubuntu)..."',
         `${DR}curl -fsSL https://get.docker.com | sudo sh`,
@@ -454,6 +473,44 @@ function generateScript(_ref) {
     } else {
       add('info "Installing Prometheus Node Exporter..."', `${DR}sudo $PM install -y prometheus-node-exporter`, `${DR}sudo systemctl enable --now prometheus-node-exporter`, 'ok "Node Exporter on :9100"');
     }
+  }
+  var _sw$nginx, _sw$nginxpm, _sw$glances;
+  if ((_sw$nginx = sw.nginx) !== null && _sw$nginx !== void 0 && _sw$nginx.enabled) {
+    sec_('NGINX');
+    if (isArch) {
+      add('info "Installing NGINX (Arch)..."', `${DR}sudo pacman -S --noconfirm nginx`);
+    } else if (isAlpine) {
+      add('info "Installing NGINX (Alpine)..."', `${DR}sudo apk add nginx`);
+    } else {
+      add('info "Installing NGINX..."', `${DR}sudo $PM install -y nginx`);
+    }
+    add(`if command -v systemctl &>/dev/null; then ${DR}sudo systemctl enable --now nginx; else ${DR}sudo rc-update add nginx default 2>/dev/null || true && ${DR}sudo service nginx start 2>/dev/null || true; fi`, 'ok "NGINX running"');
+  }
+  if ((_sw$nginxpm = sw.nginxProxyManager) !== null && _sw$nginxpm !== void 0 && _sw$nginxpm.enabled) {
+    sec_('NGINX Proxy Manager');
+    if (!sw.docker || !sw.docker.enabled) {
+      add('warn "NGINX Proxy Manager requires Docker — ensure Docker is installed before this step"');
+    }
+    const npmPort = (sw.nginxProxyManager.config && sw.nginxProxyManager.config.adminPort) || '81';
+    add('info "Starting NGINX Proxy Manager..."',
+      `${DR}docker volume create npm_data`,
+      `${DR}docker volume create npm_letsencrypt`,
+      `${DR}docker run -d --name nginx-proxy-manager --restart unless-stopped -p 80:80 -p 443:443 -p ${npmPort}:81 -v npm_data:/data -v npm_letsencrypt:/etc/letsencrypt jc21/nginx-proxy-manager:latest`,
+      `ok "NGINX Proxy Manager admin on :${npmPort}"`);
+  }
+  if ((_sw$glances = sw.glances) !== null && _sw$glances !== void 0 && _sw$glances.enabled) {
+    sec_('Glances');
+    if (isAlpine) {
+      add('info "Installing Glances (Alpine)..."', `${DR}sudo apk add py3-glances`);
+    } else if (isArch) {
+      add('info "Installing Glances (Arch)..."', `${DR}sudo pacman -S --noconfirm glances`);
+    } else {
+      add('info "Installing Glances..."', `${DR}sudo $PM install -y glances || ${DR}sudo pip3 install glances`);
+    }
+    if (sw.glances.config && sw.glances.config.webMode) {
+      add(`${DR}sudo pip3 install glances[web] 2>/dev/null || true`);
+    }
+    add('ok "Glances ready"');
   }
   if (infra.cronJobs.enabled && infra.cronJobs.config.jobs.length > 0) {
     sec_('Cron Jobs');
@@ -1085,15 +1142,19 @@ function SwLogo({name, distro}) {
     nodejs: "M11.998,24c-0.321,0-0.641-0.084-0.922-0.247l-2.936-1.737c-0.438-0.245-0.224-0.332-0.08-0.383c0.585-0.203,0.703-0.25,1.328-0.604c0.065-0.037,0.151-0.023,0.218,0.017l2.256,1.339c0.082,0.045,0.197,0.045,0.272,0l8.795-5.076c0.082-0.047,0.134-0.141,0.134-0.238V6.921c0-0.099-0.053-0.192-0.137-0.242l-8.791-5.072c-0.081-0.047-0.189-0.047-0.271,0L3.075,6.68C2.99,6.729,2.936,6.825,2.936,6.921v10.15c0,0.097,0.054,0.189,0.139,0.235l2.409,1.392c1.307,0.654,2.108-0.116,2.108-0.89V7.787c0-0.142,0.114-0.253,0.256-0.253h1.115c0.139,0,0.255,0.112,0.255,0.253v10.021c0,1.745-0.95,2.745-2.604,2.745c-0.508,0-0.909,0-2.026-0.551L2.28,18.675c-0.57-0.329-0.922-0.945-0.922-1.604V6.921c0-0.659,0.353-1.275,0.922-1.603l8.795-5.082c0.557-0.315,1.296-0.315,1.848,0l8.794,5.082c0.57,0.329,0.924,0.944,0.924,1.603v10.15c0,0.659-0.354,1.273-0.924,1.604l-8.794,5.078C12.643,23.916,12.324,24,11.998,24zM19.099,13.993c0-1.9-1.284-2.406-3.987-2.763c-2.731-0.361-3.009-0.548-3.009-1.187c0-0.528,0.235-1.233,2.258-1.233c1.807,0,2.473,0.389,2.747,1.607c0.024,0.115,0.129,0.199,0.247,0.199h1.141c0.071,0,0.138-0.031,0.186-0.081c0.048-0.054,0.074-0.123,0.067-0.196c-0.177-2.098-1.571-3.076-4.388-3.076c-2.508,0-4.004,1.058-4.004,2.833c0,1.925,1.488,2.457,3.895,2.695c2.88,0.282,3.103,0.703,3.103,1.269c0,0.983-0.789,1.402-2.642,1.402c-2.327,0-2.839-0.584-3.011-1.742c-0.02-0.124-0.126-0.215-0.253-0.215h-1.137c-0.141,0-0.254,0.112-0.254,0.253c0,1.482,0.806,3.248,4.655,3.248C17.501,17.007,19.099,15.91,19.099,13.993z",
     netdata: "M14.764 21.827H9.922L0 2.173h14.084c5.476.01 9.913 4.565 9.916 10.183-.009 5.235-4.14 9.47-9.238 9.47z",
     portainer: "M12.504 0v1.023l-.01-.015-6.106 3.526H3.417v.751h5.359v3.638h1.942V5.284h1.786v10.416c.027 0 .54-.01.751.091V5.285h.531v10.608c.293.147.55.312.751.54V5.286h6.046v-.75h-1.267l-6.061-3.5V0zm0 1.87v2.664H7.889zm.751.031l4.56 2.633h-4.56zM9.142 5.285h1.21v1.686h-1.21zm-4.736 2.73v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm-2.19 2.171v1.951h1.942v-1.95zm2.19 0v1.951h1.941v-1.95zm2.18 0v1.951h1.942v-1.95zM4.36 12.43a3.73 3.73 0 00-.494 1.851c0 1.227.604 2.308 1.52 2.986.239-.064.477-.1.724-.11.1 0 .165.01.266.019.284-1.191 1.383-1.988 2.665-1.988.724 0 1.438.201 1.924.668.229-.476.302-1.007.302-1.575 0-.65-.165-1.292-.494-1.85zm4.828 3.16c-1.21 0-2.226.844-2.492 1.97a.922.922 0 00-.275-.009 2.559 2.559 0 00-2.564 2.556 2.565 2.565 0 003.096 2.5A2.579 2.579 0 009.233 24c.862 0 1.622-.43 2.09-1.081a2.557 2.557 0 004.186-1.97c0-.567-.193-1.099-.504-1.52a2.557 2.557 0 00-3.866-2.94 2.574 2.574 0 00-1.951-.898z",
-    prometheus: "M12 0C5.373 0 0 5.372 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-6.628-5.373-12-12-12zm0 22.46c-1.885 0-3.414-1.26-3.414-2.814h6.828c0 1.553-1.528 2.813-3.414 2.813zm5.64-3.745H6.36v-2.046h11.28v2.046zm-.04-3.098H6.391c-.037-.043-.075-.086-.111-.13-1.155-1.401-1.427-2.133-1.69-2.879-.005-.025 1.4.287 2.395.511 0 0 .513.119 1.262.255-.72-.843-1.147-1.915-1.147-3.01 0-2.406 1.845-4.508 1.18-6.207.648.053 1.34 1.367 1.387 3.422.689-.951.977-2.69.977-3.755 0-1.103.727-2.385 1.454-2.429-.648 1.069.168 1.984.894 4.256.272.854.237 2.29.447 3.201.07-1.892.395-4.652 1.595-5.605-.529 1.2.079 2.702.494 3.424.671 1.164 1.078 2.047 1.078 3.716a4.642 4.642 0 01-1.11 2.996c.792-.149 1.34-.283 1.34-.283l2.573-.502s-.374 1.538-1.81 3.019z"
+    prometheus: "M12 0C5.373 0 0 5.372 0 12c0 6.627 5.373 12 12 12s12-5.373 12-12c0-6.628-5.373-12-12-12zm0 22.46c-1.885 0-3.414-1.26-3.414-2.814h6.828c0 1.553-1.528 2.813-3.414 2.813zm5.64-3.745H6.36v-2.046h11.28v2.046zm-.04-3.098H6.391c-.037-.043-.075-.086-.111-.13-1.155-1.401-1.427-2.133-1.69-2.879-.005-.025 1.4.287 2.395.511 0 0 .513.119 1.262.255-.72-.843-1.147-1.915-1.147-3.01 0-2.406 1.845-4.508 1.18-6.207.648.053 1.34 1.367 1.387 3.422.689-.951.977-2.69.977-3.755 0-1.103.727-2.385 1.454-2.429-.648 1.069.168 1.984.894 4.256.272.854.237 2.29.447 3.201.07-1.892.395-4.652 1.595-5.605-.529 1.2.079 2.702.494 3.424.671 1.164 1.078 2.047 1.078 3.716a4.642 4.642 0 01-1.11 2.996c.792-.149 1.34-.283 1.34-.283l2.573-.502s-.374 1.538-1.81 3.019z",
+    nginx: "M12 0L1.605 6v12L12 24l10.395-6V6zm-2.432 15.214-.9.519-.993-1.723V9.927h1.208v4.05l.685 1.237zm4.864 0-.9.519-.685-1.237V9.927h1.208v4.05l.993 1.723-.616.519z"
   };
   const OS = {
     ubuntu: "M17.61.455a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zM12.92.8C8.923.777 5.137 2.941 3.148 6.451a4.5 4.5 0 0 1 .26-.007 4.92 4.92 0 0 1 2.585.737A8.316 8.316 0 0 1 12.688 3.6 4.944 4.944 0 0 1 13.723.834 11.008 11.008 0 0 0 12.92.8zm9.226 4.994a4.915 4.915 0 0 1-1.918 2.246 8.36 8.36 0 0 1-.273 8.303 4.89 4.89 0 0 1 1.632 2.54 11.156 11.156 0 0 0 .559-13.089zM3.41 7.932A3.41 3.41 0 0 0 0 11.342a3.41 3.41 0 0 0 3.41 3.409 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41zm2.027 7.866a4.908 4.908 0 0 1-2.915.358 11.1 11.1 0 0 0 7.991 6.698 11.234 11.234 0 0 0 2.422.249 4.879 4.879 0 0 1-.999-2.85 8.484 8.484 0 0 1-.836-.136 8.304 8.304 0 0 1-5.663-4.32zm11.405.928a3.41 3.41 0 0 0-3.41 3.41 3.41 3.41 0 0 0 3.41 3.41 3.41 3.41 0 0 0 3.41-3.41 3.41 3.41 0 0 0-3.41-3.41z",
     debian: "M11.97 0C5.366 0 0 5.365 0 11.97c0 6.603 5.366 11.969 11.97 11.969 6.603 0 11.969-5.366 11.969-11.97C23.939 5.366 18.573 0 11.97 0zm.569 2.017c.936.013 1.804.247 2.585.67-.603-.07-1.224-.083-1.862-.024-1.79.166-3.35.94-4.44 2.097-.47.5-.83 1.064-1.084 1.658a5.55 5.55 0 0 0-.397 2.033c0 .593.095 1.17.28 1.716.372 1.108 1.081 2.051 2.03 2.71.55.381 1.175.648 1.847.782.69.138 1.412.131 2.111-.02.655-.142 1.268-.43 1.79-.836a4.52 4.52 0 0 0 1.264-1.587 4.61 4.61 0 0 0 .435-1.949 4.557 4.557 0 0 0-.64-2.332 4.52 4.52 0 0 0-1.665-1.601 4.547 4.547 0 0 0-2.254-.573c-.58 0-1.139.105-1.657.31a4.52 4.52 0 0 0-1.415.898 4.5 4.5 0 0 0-.96 1.362 4.483 4.483 0 0 0-.354 1.748c0 .72.173 1.408.505 2.02a4.496 4.496 0 0 0 1.373 1.52c.581.41 1.261.67 1.987.747.7.074 1.424-.008 2.087-.255.284-.106.55-.245.799-.413-.493.537-1.122.95-1.829 1.183-.768.254-1.604.295-2.407.102a5.558 5.558 0 0 1-2.104-1.027 5.576 5.576 0 0 1-1.42-1.77 5.614 5.614 0 0 1-.527-2.37c0-.857.188-1.694.557-2.466a5.558 5.558 0 0 1 1.529-1.896A5.545 5.545 0 0 1 9.87 4.576a5.596 5.596 0 0 1 2.668-.56z",
-    raspbian: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm8 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 3c2.761 0 5 2.239 5 5s-2.239 5-5 5-5-2.239-5-5 2.239-5 5-5zm-6 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-6 1a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm8 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"
+    raspbian: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm8 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 3c2.761 0 5 2.239 5 5s-2.239 5-5 5-5-2.239-5-5 2.239-5 5-5zm-6 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm12 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-6 1a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm-4 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm8 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4 2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z",
+    fedora: "M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm.3 3.793c2.514 0 4.71 1.228 6.098 3.122a1.128 1.128 0 01-1.876 1.25A4.49 4.49 0 0012.3 6.057a4.49 4.49 0 00-4.49 4.491c0 .636.13 1.24.366 1.788H12.3v1.98H8.03a4.487 4.487 0 003.97 2.403h.3a4.488 4.488 0 003.782-2.067 1.128 1.128 0 011.904 1.21A6.745 6.745 0 0112.3 18.84a6.737 6.737 0 01-6.487-4.524H4.2v-1.98h1.285a6.738 6.738 0 01-.182-1.54A6.737 6.737 0 0112.3 4.062z",
+    arch: "M12.036 0c-.49 0-.978.065-1.453.196L0 24h24L13.49.196A4.718 4.718 0 0012.036 0zm0 6.27 4.327 9.6H7.71z",
+    alpine: "M12 0L0 8.485V24h24V8.485L12 0zm0 2.97 8.4 5.758V21.6H3.6V8.728z"
   };
   const t = distro && distro.type;
-  const d = PATHS[name] || OS[t === 'raspbian' ? 'raspbian' : t === 'debian' ? 'debian' : 'ubuntu'];
+  const d = PATHS[name] || OS[t] || OS['ubuntu'];
   return React.createElement("svg", {viewBox:"0 0 24 24", width:20, height:20, fill:"currentColor", style:{display:'block',flexShrink:0}},
     React.createElement("path", {d:d})
   );
@@ -1108,6 +1169,7 @@ function SwItem(_ref11) {
     expanded,
     onExpand,
     badge,
+    depWarn,
     children
   } = _ref11;
   const hasConf = !!children;
@@ -1167,7 +1229,9 @@ function SwItem(_ref11) {
       fontFamily: 'var(--sans)',
       marginTop: 1
     }
-  }, desc)), hasConf && on && React.createElement("span", {
+  }, desc), depWarn && React.createElement("div", {
+    style: { fontSize: 11, color: 'var(--amber)', marginTop: 2, fontFamily: 'var(--sans)' }
+  }, "⚠️ " + depWarn)), hasConf && on && React.createElement("span", {
     style: {
       fontSize: 9,
       color: 'var(--dim)',
@@ -2475,6 +2539,22 @@ function App() {
     prometheus: {
       enabled: false,
       config: {}
+    },
+    nginx: {
+      enabled: false,
+      config: {}
+    },
+    nginxProxyManager: {
+      enabled: false,
+      config: {
+        adminPort: '81'
+      }
+    },
+    glances: {
+      enabled: false,
+      config: {
+        webMode: false
+      }
     }
   });
   const togSw = k => setSw(p => ({
@@ -3024,18 +3104,23 @@ function App() {
   function verifyDeploy(idx, host) {
     const checks = {};
     const pkgMap = {
-      docker: 'command -v docker',
-      git: 'command -v git',
-      ncdu: 'command -v ncdu',
-      htop: 'command -v htop',
-      tmux: 'command -v tmux',
-      neofetch: 'command -v neofetch',
-      curl: 'command -v curl',
-      vim: 'command -v vim',
-      duf: 'command -v duf',
-      ufw: 'command -v ufw',
-      fail2ban: 'command -v fail2ban-client',
-      netdata: 'command -v netdata'
+      docker: 'systemctl is-active docker 2>/dev/null || docker info &>/dev/null && echo active || echo inactive',
+      git: 'command -v git &>/dev/null && echo installed || echo missing',
+      ncdu: 'command -v ncdu &>/dev/null && echo installed || echo missing',
+      htop: 'command -v htop &>/dev/null && echo installed || echo missing',
+      tmux: 'command -v tmux &>/dev/null && echo installed || echo missing',
+      neofetch: 'command -v neofetch &>/dev/null && echo installed || echo missing',
+      curl: 'command -v curl &>/dev/null && echo installed || echo missing',
+      vim: 'command -v vim &>/dev/null && echo installed || echo missing',
+      duf: 'command -v duf &>/dev/null && echo installed || echo missing',
+      ufw: 'command -v ufw &>/dev/null && echo installed || echo missing',
+      fail2ban: 'command -v fail2ban-client &>/dev/null && echo installed || echo missing',
+      netdata: 'systemctl is-active netdata 2>/dev/null || command -v netdata &>/dev/null && echo active || echo inactive',
+      nginx: 'systemctl is-active nginx 2>/dev/null || service nginx status &>/dev/null && echo active || echo inactive',
+      nginxProxyManager: 'docker inspect -f \"{{.State.Status}}\" nginx-proxy-manager 2>/dev/null || echo missing',
+      glances: 'command -v glances &>/dev/null && echo installed || echo missing',
+      prometheus: 'systemctl is-active prometheus-node-exporter 2>/dev/null || command -v prometheus-node-exporter &>/dev/null && echo active || echo inactive',
+      portainer: 'docker inspect -f \"{{.State.Status}}\" portainer 2>/dev/null || echo missing'
     };
     Object.keys(sw).filter(k => sw[k].enabled && pkgMap[k]).forEach(k => {
       checks[k] = pkgMap[k];
@@ -3085,7 +3170,7 @@ function App() {
     if (selected._hostname) setHostname(selected._hostname);
     setSw(p => {
       const n = { ...p };
-      ['docker', 'git', 'ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'netdata', 'python3', 'nodejs'].forEach(k => {
+      ['docker', 'git', 'ncdu', 'htop', 'tmux', 'curl', 'vim', 'nmap', 'rsync', 'unzip', 'duf', 'netdata', 'python3', 'nodejs', 'nginx', 'glances'].forEach(k => {
         if (selected[k] && n[k]) n[k] = { ...n[k], enabled: true };
       });
       return n;
@@ -3327,7 +3412,13 @@ function App() {
     value: "debian"
   }, "Debian"), React.createElement("option", {
     value: "raspbian"
-  }, "Raspberry Pi OS")), distro.type === 'raspbian' && React.createElement("select", {
+  }, "Raspberry Pi OS"), React.createElement("option", {
+    value: "fedora"
+  }, "Fedora"), React.createElement("option", {
+    value: "arch"
+  }, "Arch Linux"), React.createElement("option", {
+    value: "alpine"
+  }, "Alpine Linux")), distro.type === 'raspbian' && React.createElement("select", {
     value: distro.piModel,
     onChange: e => setDistro(p => ({
       ...p,
@@ -3653,6 +3744,7 @@ function App() {
     label: "Portainer CE",
     desc: "Docker web management UI",
     icon: React.createElement(SwLogo, {name:'portainer', distro}),
+    depWarn: sw.portainer.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
     on: sw.portainer.enabled,
     onToggle: () => togSw('portainer'),
     expanded: expanded.portainer,

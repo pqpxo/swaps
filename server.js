@@ -105,7 +105,7 @@ wss.on('connection', (ws) => {
 
         const script = [
           'HN=$(hostname -f 2>/dev/null || hostname); echo "_hostname=$HN"',
-          'for p in docker git ncdu htop tmux curl vim nmap rsync unzip duf netdata; do',
+          'for p in docker git ncdu htop tmux curl vim nmap rsync unzip duf netdata nginx glances; do',
           '  if command -v $p &>/dev/null; then',
           '    echo "$p=1"',
           '  else',
@@ -152,6 +152,34 @@ wss.on('connection', (ws) => {
         ...(privateKey ? { privateKey } : { password }),
       };
       try { ssh.connect(opts); } catch (e) { emit('error', e.message); }
+    }
+
+    if (msg.type === 'verify') {
+      const { host, port, username, password, privateKey, checks } = msg;
+      const vssh = new Client();
+      const entries = Object.entries(checks);
+      const script = entries.map(([k, cmd]) => `echo "__${k}__=$(${cmd} 2>/dev/null; true)"`).join('\n');
+      vssh.on('ready', () => {
+        vssh.exec(script, (err, stream) => {
+          if (err) { emit('error', `Verify error: ${err.message}`); vssh.end(); return; }
+          let out = '';
+          stream.on('data', d => { out += d.toString(); });
+          stream.stderr.on('data', () => {});
+          stream.on('close', () => {
+            const results = {};
+            out.split('\n').forEach(line => {
+              const m = line.match(/^__(\w+)__=(.*)/);
+              if (m) results[m[1]] = m[2].trim();
+            });
+            emit('verifyResults', results);
+            vssh.end();
+          });
+        });
+      });
+      vssh.on('error', err => emit('error', `\x1b[31m✗ Verify: ${err.message}\x1b[0m\r\n`));
+      const opts = { host, port: +(port || 22), username, readyTimeout: 10000,
+        ...(privateKey ? { privateKey } : { password }) };
+      try { vssh.connect(opts); } catch (e) { emit('error', e.message); }
     }
 
     if (msg.type === 'input' && activeStream) {
