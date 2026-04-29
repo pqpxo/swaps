@@ -3747,6 +3747,18 @@ function App() {
     onChange: v => updSw('git', 'branch', v),
     placeholder: "main"
   })), React.createElement(SwItem, {
+    label: "Glances",
+    desc: "System resource monitor",
+    icon: React.createElement(SwLogo, {name:'glances', distro}),
+    on: sw.glances.enabled,
+    onToggle: () => togSw('glances'),
+    expanded: expanded.glances,
+    onExpand: () => togExp('glances')
+  }, React.createElement(Check, {
+    label: "Enable web interface",
+    checked: sw.glances.config.webMode,
+    onChange: v => updSw('glances', 'webMode', v)
+  })), React.createElement(SwItem, {
     key: "htop",
     label: "htop",
     desc: "Interactive process viewer",
@@ -3755,6 +3767,73 @@ function App() {
     onToggle: () => togSw('htop'),
     expanded: false
   }), React.createElement(SwItem, {
+    label: "Media Server Stack",
+    desc: "Plex/Jellyfin + *arr suite + downloaders",
+    icon: React.createElement(SwLogo, {name: sw.mediaServer.enabled && sw.mediaServer.config.mediaApp === 'jellyfin' ? 'jellyfin' : 'plex', distro}),
+    depWarn: sw.mediaServer.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
+    on: sw.mediaServer.enabled,
+    onToggle: () => togSw('mediaServer'),
+    expanded: expanded.mediaServer,
+    onExpand: () => togExp('mediaServer')
+  },
+    React.createElement("div", {style:{marginBottom:10}},
+      React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.06em'}}, "Media Application"),
+      React.createElement("div", {style:{display:'flex',gap:16}},
+        ['plex','jellyfin'].map(app =>
+          React.createElement("label", {key:app, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,color:'var(--text)'}},
+            React.createElement("input", {type:'radio', name:'mediaApp', value:app,
+              checked: sw.mediaServer.config.mediaApp === app,
+              onChange: () => updSw('mediaServer','mediaApp',app),
+              style:{accentColor:'var(--teal)'}}),
+            app === 'plex' ? 'Plex' : 'Jellyfin'
+          )
+        )
+      )
+    ),
+    sw.mediaServer.config.mediaApp === 'plex' && React.createElement(Inp, {
+      label: "Plex Claim Token (optional)",
+      value: sw.mediaServer.config.plexClaim,
+      onChange: v => updSw('mediaServer','plexClaim',v),
+      placeholder: "claim-xxxx  ·  from plex.tv/claim"
+    }),
+    React.createElement("div", {style:{marginTop:10}},
+      React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
+        React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',textTransform:'uppercase',letterSpacing:'0.06em'}}, "Docker Containers"),
+        React.createElement("div", {style:{display:'flex',gap:4}},
+          React.createElement(Btn, {
+            style:{fontSize:10,padding:'2px 8px'},
+            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,true])))
+          }, "All"),
+          React.createElement(Btn, {
+            style:{fontSize:10,padding:'2px 8px'},
+            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,false])))
+          }, "None")
+        )
+      ),
+      React.createElement("div", {style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 16px'}},
+        MEDIA_CONTAINERS.map(c =>
+          React.createElement("label", {key:c.key, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'3px 0',borderRadius:4}},
+            React.createElement("div", {
+              onClick: () => updSw('mediaServer','containers',{...sw.mediaServer.config.containers,[c.key]:!sw.mediaServer.config.containers[c.key]}),
+              style:{
+                width:14,height:14,flexShrink:0,
+                border:`1.5px solid ${sw.mediaServer.config.containers[c.key]?'var(--teal)':'var(--bdr)'}`,
+                borderRadius:3,
+                background:sw.mediaServer.config.containers[c.key]?'var(--teal)':'transparent',
+                display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'
+              }
+            },
+              sw.mediaServer.config.containers[c.key] && React.createElement("svg",{viewBox:"0 0 12 12",width:8,height:8,fill:"none",stroke:"#fff",strokeWidth:2},React.createElement("polyline",{points:"2,6 5,9 10,3"}))
+            ),
+            React.createElement("div", null,
+              React.createElement("div", {style:{fontSize:12,color:'var(--text)',lineHeight:1.2}}, c.label),
+              React.createElement("div", {style:{fontSize:10,color:'var(--dim)'}}, c.desc)
+            )
+          )
+        )
+      )
+    )
+  ), React.createElement(SwItem, {
     key: "ncdu",
     label: "ncdu",
     desc: "NCurses disk usage analyser",
@@ -3786,6 +3865,27 @@ function App() {
       label: 'monitoring'
     }
   }), React.createElement(SwItem, {
+    label: "NGINX",
+    desc: "High-performance web server",
+    icon: React.createElement(SwLogo, {name:'nginx', distro}),
+    on: sw.nginx.enabled,
+    onToggle: () => togSw('nginx'),
+    expanded: false
+  }), React.createElement(SwItem, {
+    label: "NGINX Proxy Manager",
+    desc: "Reverse proxy with SSL UI (Docker)",
+    icon: React.createElement(SwLogo, {name:'nginx', distro}),
+    depWarn: sw.nginxProxyManager.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
+    on: sw.nginxProxyManager.enabled,
+    onToggle: () => togSw('nginxProxyManager'),
+    expanded: expanded.nginxProxyManager,
+    onExpand: () => togExp('nginxProxyManager')
+  }, React.createElement(Inp, {
+    label: "Admin UI port",
+    value: sw.nginxProxyManager.config.adminPort,
+    onChange: v => updSw('nginxProxyManager', 'adminPort', v),
+    placeholder: "81"
+  })), React.createElement(SwItem, {
     key: "nmap",
     label: "nmap",
     desc: "Network scanner",
@@ -3884,107 +3984,7 @@ function App() {
     value: sw.wazuh.config.managerPort,
     onChange: v => updSw('wazuh', 'managerPort', v),
     placeholder: "1514"
-  })), React.createElement(SwItem, {
-    label: "NGINX",
-    desc: "High-performance web server",
-    icon: React.createElement(SwLogo, {name:'nginx', distro}),
-    on: sw.nginx.enabled,
-    onToggle: () => togSw('nginx'),
-    expanded: false
-  }), React.createElement(SwItem, {
-    label: "NGINX Proxy Manager",
-    desc: "Reverse proxy with SSL UI (Docker)",
-    icon: React.createElement(SwLogo, {name:'nginx', distro}),
-    depWarn: sw.nginxProxyManager.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
-    on: sw.nginxProxyManager.enabled,
-    onToggle: () => togSw('nginxProxyManager'),
-    expanded: expanded.nginxProxyManager,
-    onExpand: () => togExp('nginxProxyManager')
-  }, React.createElement(Inp, {
-    label: "Admin UI port",
-    value: sw.nginxProxyManager.config.adminPort,
-    onChange: v => updSw('nginxProxyManager', 'adminPort', v),
-    placeholder: "81"
-  })), React.createElement(SwItem, {
-    label: "Glances",
-    desc: "System resource monitor",
-    icon: React.createElement(SwLogo, {name:'glances', distro}),
-    on: sw.glances.enabled,
-    onToggle: () => togSw('glances'),
-    expanded: expanded.glances,
-    onExpand: () => togExp('glances')
-  }, React.createElement(Check, {
-    label: "Enable web interface",
-    checked: sw.glances.config.webMode,
-    onChange: v => updSw('glances', 'webMode', v)
-  })), React.createElement(SwItem, {
-    label: "Media Server Stack",
-    desc: "Plex/Jellyfin + *arr suite + downloaders",
-    icon: React.createElement(SwLogo, {name: sw.mediaServer.enabled && sw.mediaServer.config.mediaApp === 'jellyfin' ? 'jellyfin' : 'plex', distro}),
-    depWarn: sw.mediaServer.enabled && !sw.docker.enabled ? 'Requires Docker' : undefined,
-    on: sw.mediaServer.enabled,
-    onToggle: () => togSw('mediaServer'),
-    expanded: expanded.mediaServer,
-    onExpand: () => togExp('mediaServer')
-  },
-    React.createElement("div", {style:{marginBottom:10}},
-      React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.06em'}}, "Media Application"),
-      React.createElement("div", {style:{display:'flex',gap:16}},
-        ['plex','jellyfin'].map(app =>
-          React.createElement("label", {key:app, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:13,color:'var(--text)'}},
-            React.createElement("input", {type:'radio', name:'mediaApp', value:app,
-              checked: sw.mediaServer.config.mediaApp === app,
-              onChange: () => updSw('mediaServer','mediaApp',app),
-              style:{accentColor:'var(--teal)'}}),
-            app === 'plex' ? 'Plex' : 'Jellyfin'
-          )
-        )
-      )
-    ),
-    sw.mediaServer.config.mediaApp === 'plex' && React.createElement(Inp, {
-      label: "Plex Claim Token (optional)",
-      value: sw.mediaServer.config.plexClaim,
-      onChange: v => updSw('mediaServer','plexClaim',v),
-      placeholder: "claim-xxxx  ·  from plex.tv/claim"
-    }),
-    React.createElement("div", {style:{marginTop:10}},
-      React.createElement("div", {style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}},
-        React.createElement("div", {style:{fontSize:11,fontWeight:600,color:'var(--dim)',textTransform:'uppercase',letterSpacing:'0.06em'}}, "Docker Containers"),
-        React.createElement("div", {style:{display:'flex',gap:4}},
-          React.createElement(Btn, {
-            style:{fontSize:10,padding:'2px 8px'},
-            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,true])))
-          }, "All"),
-          React.createElement(Btn, {
-            style:{fontSize:10,padding:'2px 8px'},
-            onClick: () => updSw('mediaServer','containers',Object.fromEntries(MEDIA_CONTAINERS.map(c=>[c.key,false])))
-          }, "None")
-        )
-      ),
-      React.createElement("div", {style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'2px 16px'}},
-        MEDIA_CONTAINERS.map(c =>
-          React.createElement("label", {key:c.key, style:{display:'flex',alignItems:'center',gap:6,cursor:'pointer',padding:'3px 0',borderRadius:4}},
-            React.createElement("div", {
-              onClick: () => updSw('mediaServer','containers',{...sw.mediaServer.config.containers,[c.key]:!sw.mediaServer.config.containers[c.key]}),
-              style:{
-                width:14,height:14,flexShrink:0,
-                border:`1.5px solid ${sw.mediaServer.config.containers[c.key]?'var(--teal)':'var(--bdr)'}`,
-                borderRadius:3,
-                background:sw.mediaServer.config.containers[c.key]?'var(--teal)':'transparent',
-                display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'
-              }
-            },
-              sw.mediaServer.config.containers[c.key] && React.createElement("svg",{viewBox:"0 0 12 12",width:8,height:8,fill:"none",stroke:"#fff",strokeWidth:2},React.createElement("polyline",{points:"2,6 5,9 10,3"}))
-            ),
-            React.createElement("div", null,
-              React.createElement("div", {style:{fontSize:12,color:'var(--text)',lineHeight:1.2}}, c.label),
-              React.createElement("div", {style:{fontSize:10,color:'var(--dim)'}}, c.desc)
-            )
-          )
-        )
-      )
-    )
-  )), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
+  }))), leftTab === 'config' && React.createElement(React.Fragment, null, React.createElement(SwItem, {
     label: ".bashrc Config",
     desc: "Aliases \xB7 PS1 \xB7 SSH Menu",
     icon: "\u2261",
