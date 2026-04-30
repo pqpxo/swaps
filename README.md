@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/logo.png" alt="SWAPS Logo" width="100" height="100" style="border-radius: 20px"/>
 
-  # SWAPS
+  # **SWAPS**
   ### SWAKES Automated Provisioning System
 
   *Generate, configure and deploy Linux provisioning scripts to remote hosts all from your browser.*
@@ -11,7 +11,7 @@
   ![Node](https://img.shields.io/badge/node-20--alpine-339933?logo=node.js&logoColor=white)
   ![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=black)
 
-  [SWAKES.co.uk](http://SWAKES.co.uk) | [Blog Post](https://makes.swakes.co.uk/code-with-claude-point-click-provisioned-with-swaps/)
+  [SWAKES.co.uk](http://SWAKES.co.uk) ‎&nbsp;  |‎ &nbsp;  [Blog Post](https://makes.swakes.co.uk/code-with-claude-point-click-provisioned-with-swaps/)
   
 </div>
 
