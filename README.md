@@ -80,6 +80,79 @@ No Ansible control node. No manual scripting. Just point, click, deploy.
 - Import settings from a live host via SSH scan
 - Ansible export for CI/CD integration
 
+Let me pull the full list from the source — software tab plus security and infrastructure:
+
+I have everything I need. Here's the README-ready markdown:
+
+---
+
+## Available Software
+
+### 🖥️ Software Packages
+
+| Package | Description |
+|---|---|
+| curl | HTTP client |
+| Docker & Docker Compose | Container runtime + Compose |
+| duf | Pretty disk usage (df replacement) |
+| Git | Distributed version control |
+| Glances | System resource monitor |
+| htop | Interactive process viewer |
+| ncdu | NCurses disk usage analyser |
+| Neofetch | System info with custom config + image |
+| Netdata | Real-time performance monitoring |
+| NGINX | High-performance web server |
+| NGINX Proxy Manager | Reverse proxy with SSL UI *(requires Docker)* |
+| nmap | Network scanner |
+| Node.js | JavaScript runtime (LTS) |
+| Portainer CE | Docker web management UI *(requires Docker)* |
+| Prometheus Node Exporter | Metrics exporter for Prometheus/Grafana |
+| Python 3 | Python 3 runtime |
+| rsync | Fast file sync/transfer |
+| tmux | Terminal multiplexer |
+| unzip | Archive extractor |
+| vim | Vi IMproved text editor |
+| Wazuh Agent | Security monitoring + SIEM |
+
+### 🎬 Media Server Stack *(requires Docker)*
+
+Includes a choice of **Plex** or **Jellyfin**, plus any combination of:
+
+| Container | Description |
+|---|---|
+| Bazarr | Subtitle management |
+| Cleanuparr | Media library cleanup |
+| FlareSolverr | Cloudflare bypass proxy |
+| Kapowarr | Comics management |
+| Lidarr | Music management |
+| Overseerr | Media request management |
+| Prowlarr | Indexer manager |
+| qBittorrent | BitTorrent client |
+| Radarr | Movie management |
+| SABnzbd | Usenet downloader |
+| Sonarr | TV show management |
+| Tautulli | Plex statistics |
+| Tdarr | Media transcoding |
+| Tracearr | *arr stack config sync |
+| Transmission | BitTorrent client |
+| Whisparr | Adult content manager |
+
+### 🔒 Security
+
+| Feature | Description |
+|---|---|
+| UFW Firewall | Uncomplicated Firewall with presets |
+| fail2ban | Block brute-force attacks |
+
+### ⚙️ Infrastructure
+
+| Feature | Description |
+|---|---|
+| Cron Jobs | Schedule recurring tasks |
+| Custom APT Repositories | Add PPAs or third-party repos |
+| Portainer Stack Deploy | Deploy a docker-compose stack |
+
+
 ---
 
 ## Getting Started
