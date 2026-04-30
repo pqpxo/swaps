@@ -2939,6 +2939,7 @@ function App() {
       return [];
     }
   });
+  const [expandedHist, setExpandedHist] = useState(null);
   useEffect(() => {
     try {
       localStorage.setItem('swaps_history', JSON.stringify(history.slice(0, 50)));
@@ -3063,6 +3064,7 @@ function App() {
     });
     const ws = new WebSocket(`ws://${window.location.host}/ws`);
     wsRefs.current[idx] = ws;
+    const logBuffer = [];
     const eff = host.sudoSameAsSSH ? host.password : host.sudoPassword;
     ws.onopen = () => ws.send(JSON.stringify({
       type: 'deploy',
@@ -3082,6 +3084,7 @@ function App() {
           text: l,
           type: msg.type
         }));
+        logBuffer.push(...nl);
         setTerminals(p => {
           const t = [...p];
           t[idx] = {
@@ -3118,7 +3121,8 @@ function App() {
             host: host.host,
             hostname,
             pkgs: Object.keys(sw).filter(k => sw[k].enabled),
-            dryRun
+            dryRun,
+            logs: [...logBuffer]
           };
           setHistory(p => [entry, ...p]);
           if (!dryRun) verifyDeploy(idx, host);
@@ -5776,21 +5780,21 @@ function App() {
     style: {
       background: 'var(--card)',
       borderRadius: 8,
-      padding: '10px 12px',
       marginBottom: 8,
-      border: '1px solid var(--bdr)'
+      border: '1px solid var(--bdr)',
+      overflow: 'hidden'
     }
   }, React.createElement("div", {
+    onClick: () => setExpandedHist(expandedHist === h.id ? null : h.id),
     style: {
+      padding: '10px 12px',
+      cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
-      gap: 6,
-      marginBottom: 4
+      gap: 6
     }
   }, React.createElement("div", {
-    style: {
-      flex: 1
-    }
+    style: { flex: 1 }
   }, React.createElement("div", {
     style: {
       fontSize: 12,
@@ -5804,15 +5808,41 @@ function App() {
       color: 'var(--dim)',
       fontFamily: 'var(--sans)'
     }
-  }, new Date(h.at).toLocaleString(), h.dryRun ? ' · dry run' : '')), h.dryRun && React.createElement(Tag, {
-    color: "amber"
-  }, "Dry Run")), React.createElement("div", {
+  }, new Date(h.at).toLocaleString(), h.dryRun ? ' · dry run' : '')),
+  h.dryRun && React.createElement(Tag, { color: "amber" }, "Dry Run"),
+  React.createElement("span", {
+    style: { fontSize: 10, color: 'var(--dim)', marginLeft: 2, flexShrink: 0 }
+  }, expandedHist === h.id ? '▼' : '▶')),
+  React.createElement("div", {
     style: {
       fontSize: 10,
       color: 'var(--faint)',
-      fontFamily: 'var(--mono)'
+      fontFamily: 'var(--mono)',
+      padding: '0 12px 8px'
     }
-  }, (h.pkgs || []).join(', ') || '—')))))
+  }, (h.pkgs || []).join(', ') || '—'),
+  expandedHist === h.id && React.createElement("div", {
+    style: {
+      borderTop: '1px solid var(--bdr)',
+      background: 'var(--bg)',
+      padding: '8px 10px',
+      maxHeight: 320,
+      overflowY: 'auto',
+      fontFamily: 'var(--mono)',
+      fontSize: 11,
+      lineHeight: 1.5
+    }
+  }, (!h.logs || h.logs.length === 0)
+    ? React.createElement("div", { style: { color: 'var(--faint)', fontStyle: 'italic' } }, "No log data for this entry.")
+    : h.logs.map((l, i) => React.createElement("div", {
+        key: i,
+        style: {
+          color: l.type === 'stderr' ? 'var(--red)' : lineColor(l.text),
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word'
+        }
+      }, l.text))
+  )))))
   ), React.createElement("div", {className:"mob-nav"},
     ...[['software','⬡','SW'],['config','≡','Cfg'],['security','◉','Sec'],['infra','⊛','Inf'],['profiles','⊞','Pro'],['settings','⚙','Set']].map(([k,icon,lbl_]) =>
       React.createElement("button", {
