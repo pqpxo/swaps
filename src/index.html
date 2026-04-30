@@ -272,14 +272,13 @@ function processNeofetchConfig(vars) {
 function buildMenuBlock(darkBlue, blue, items, loginDir) {
   const ESC = '\\033',
     CR = '\\r';
-  const RST = ESC + '[0m';
   const optParts = items.map((it, i) => {
-    const c = i === 0 ? darkBlue : blue;
-    return '${' + c + '}' + it.label + '${' + '${' + RST + '}' + '}';
+    const v = i === 0 ? '${DARK_BLUE}' : '${BLUE}';
+    return v + it.label + '${RESET}';
   });
   const keyParts = items.map((it, i) => {
-    const c = i === 0 ? darkBlue : blue;
-    return '${' + c + '}' + it.key.toUpperCase() + '${' + '${' + RST + '}' + '}';
+    const v = i === 0 ? '${DARK_BLUE}' : '${BLUE}';
+    return v + it.key.toUpperCase() + '${RESET}';
   });
   const promptLine = '    echo -e " Do you want to run ' + optParts.join(' or ') + ' [ ' + keyParts.join(' | ') + ' ]"';
   const caseEntries = [];
@@ -287,7 +286,7 @@ function buildMenuBlock(darkBlue, blue, items, loginDir) {
     const k = it.key.toUpperCase();
     caseEntries.push('        [' + k + k.toLowerCase() + ']*' + ' )');
     if (it.command) {
-      caseEntries.push('            echo -e "${' + blue + '}Running: ' + it.label + '...${' + RST + '}"');
+      caseEntries.push('            echo -e "${BLUE}Running: ' + it.label + '...${RESET}"');
       caseEntries.push('            ' + it.command);
     } else {
       caseEntries.push('            echo ""');
