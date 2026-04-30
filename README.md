@@ -23,6 +23,8 @@
 
 No Ansible control node. No manual scripting. Just point, click, deploy.
 
+![Screenshot](screenshot.png)
+
 ---
 
 ## Features
