@@ -272,6 +272,7 @@ function processNeofetchConfig(vars) {
 function buildMenuBlock(darkBlue, blue, items, loginDir) {
   const ESC = '\\033',
     CR = '\\r';
+  const RST = ESC + '[0m';
   const optParts = items.map((it, i) => {
     const v = i === 0 ? '${DARK_BLUE}' : '${BLUE}';
     return v + it.label + '${RESET}';
