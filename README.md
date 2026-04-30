@@ -11,7 +11,7 @@
   ![Node](https://img.shields.io/badge/node-20--alpine-339933?logo=node.js&logoColor=white)
   ![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=black)
 
-  [SWAKES.co.uk](http://SWAKES.co.uk)
+  [SWAKES.co.uk](http://SWAKES.co.uk) | [Blog Post](https://makes.swakes.co.uk/code-with-claude-point-click-provisioned-with-swaps/)
   
 </div>
 
