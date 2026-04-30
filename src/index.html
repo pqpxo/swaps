@@ -402,7 +402,14 @@ function generateScript(_ref) {
     sec_('Docker & Docker Compose');
     if (isRaspi) {
       add('info "Installing Docker (Raspberry Pi)..."',
-        `${DR}curl -fsSL https://get.docker.com | sudo sh`,
+        `${DR}sudo $PM install -y ca-certificates curl`,
+        `${DR}sudo install -m 0755 -d /etc/apt/keyrings`,
+        `${DR}curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg`,
+        `${DR}sudo chmod a+r /etc/apt/keyrings/docker.gpg`,
+        `CODENAME=$(. /etc/os-release && echo "$VERSION_CODENAME"); case $CODENAME in bookworm|bullseye|buster) ;; *) CODENAME=bookworm ;; esac`,
+        `${DR}echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $CODENAME stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null`,
+        `${DR}sudo apt-get update -qq`,
+        `${DR}sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`,
         `${DR}sudo systemctl enable --now docker`);
     } else if (isDebian) {
       add('info "Installing Docker (Debian)..."',
