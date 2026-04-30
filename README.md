@@ -15,6 +15,8 @@
   
 </div>
 
+
+
 ---
 
 ## What is SWAPS?
@@ -24,6 +26,33 @@
 No Ansible control node. No manual scripting. Just point, click, deploy.
 
 ![Screenshot](screenshot.png)
+
+---
+
+<!-- version 1 -->
+### Menu
+
+- [Features](#features)
+  - [Script Generation](#script-generation)
+  - [Software Provisioning](#software-provisioning)
+  - [Configuration](#configuration)
+  - [Deployment](#deployment)
+  - [Credential Vault](#credential-vault)
+  - [Profiles & Sharing](#profiles--sharing)
+- [Available Software](#available-software)
+  - [Software Packages](#software-packages)
+  - [Media Server Stack](#media-server-stack)
+  - [Security](#available-software-security)
+  - [Infrastructure](#infrastructure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Project Structure](#project-structure)
+  - [Hot Reload \(Development\)](#hot-reload-development)
+- [Architecture](#architecture)
+- [docker-compose.yml](#docker-compose-yml)
+- [Security Notes](#security-notes)
+- [Contributing](#contributing)
 
 ---
 
