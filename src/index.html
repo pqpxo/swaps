@@ -359,13 +359,13 @@ function generateScript(_ref) {
   };
   const sec_ = t => add('', `# ${'─'.repeat(56)}`, `# ${t}`, `# ${'─'.repeat(56)}`);
   const piModel = PI_MODELS.find(m => m.id === distro.piModel);
-  const osLabel = distro.type === 'ubuntu' ? 'Ubuntu' : distro.type === 'debian' ? 'Debian' : isRaspi ? `Raspberry Pi OS (${(piModel?.label) || distro.piModel})` : isFedora ? 'Fedora' : isArch ? 'Arch Linux' : isAlpine ? 'Alpine Linux' : 'Ubuntu';
   const isDebian = distro.type === 'debian';
   const isRaspi = distro.type === 'raspbian';
   const isFedora = distro.type === 'fedora';
   const isArch = distro.type === 'arch';
   const isAlpine = distro.type === 'alpine';
   const isAptBased = !isFedora && !isArch && !isAlpine;
+  const osLabel = distro.type === 'ubuntu' ? 'Ubuntu' : distro.type === 'debian' ? 'Debian' : isRaspi ? `Raspberry Pi OS (${(piModel?.label) || distro.piModel})` : isFedora ? 'Fedora' : isArch ? 'Arch Linux' : isAlpine ? 'Alpine Linux' : 'Ubuntu';
   const piArch = (PI_MODELS.find(m => m.id === distro.piModel) || {arch:'arm64'}).arch;
   add('#!/usr/bin/env bash', `# ${'═'.repeat(58)}`, `#  SWAPS  ·  ${hostname || 'unnamed-host'}  ·  ${osLabel}`, `#  Generated: $(date '+%Y-%m-%d %H:%M:%S')`, dryRun ? '#  ⚠ DRY RUN — commands prefixed with echo' : '', `# ${'═'.repeat(58)}`, '', 'set -euo pipefail', '', 'RED="\\033[0;31m" GRN="\\033[0;32m" YLW="\\033[1;33m" CYN="\\033[0;36m" RST="\\033[0m"', 'info() { echo -e "${CYN}▸ ${RST}$*"; }', 'ok()   { echo -e "${GRN}✓ ${RST}$*"; }', 'warn() { echo -e "${YLW}⚠ ${RST}$*"; }', '', 'if   command -v apt-get &>/dev/null; then PM=apt-get', 'elif command -v dnf    &>/dev/null; then PM=dnf', 'elif command -v pacman &>/dev/null; then PM=pacman', 'elif command -v apk    &>/dev/null; then PM=apk', 'else PM=yum; fi', ...(isRaspi ? ["ARCH=$(dpkg --print-architecture)", `info "Architecture: \${ARCH}"`] : []), `info "OS: ${osLabel}"`, 'info "Updating package index..."', `${DR}sudo $PM update -y -qq`);
   if (infra.aptRepos.enabled && infra.aptRepos.config.repos.length > 0) {
