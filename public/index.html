@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>SWAPS</title>
-<link rel="icon" type="image/png" href="/logo.png"/>
+<link rel="icon" type="image/png" href="logo.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
@@ -3069,7 +3069,7 @@ function App() {
       };
       return t;
     });
-    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${location.pathname.replace(/\/+$/, '')}/ws`);
     wsRefs.current[idx] = ws;
     const logBuffer = [];
     const eff = host.sudoSameAsSSH ? host.password : host.sudoPassword;
@@ -3211,7 +3211,7 @@ function App() {
   function importFromHost(creds) {
     setImportLogs([]);
     setImportStatus('connecting');
-    const ws = new WebSocket(`ws://${window.location.host}/ws`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${location.pathname.replace(/\/+$/, '')}/ws`);
     ws.onopen = () => ws.send(JSON.stringify({ type: 'import', ...creds }));
     ws.onmessage = e => {
       const msg = JSON.parse(e.data);
