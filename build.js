@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * SWAPS Pre-compile Build Script
+ * SWAps Pre-compile Build Script
  * Reads:  src/index.html   (JSX source — never edit the compiled output)
  * Writes: public/index.html (compiled, ready-to-serve)
  */

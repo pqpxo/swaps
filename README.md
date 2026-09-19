@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="src/logo.png" alt="SWAPS Logo" width="100" height="100" style="border-radius: 20px"/>
+  <img src="src/logo.png" alt="SWAps Logo" width="100" height="100" style="border-radius: 20px"/>
 
-  # **SWAPS**
+  # **SWAps**
   ### SWAKES Automated Provisioning System
 
   *Generate, configure and deploy Linux provisioning scripts to remote hosts all from your browser.*
@@ -19,9 +19,9 @@
 
 ---
 
-## What is SWAPS?
+## What is SWAps?
 
-**SWAPS** is a self-hosted web application that takes the pain out of setting up new Linux servers. Pick the software and configuration you want, fill in your host details, and SWAPS generates a ready-to-run bash script — then deploys it over SSH directly from the browser.
+**SWAps** is a self-hosted web application that takes the pain out of setting up new Linux servers. Pick the software and configuration you want, fill in your host details, and SWAps generates a ready-to-run bash script — then deploys it over SSH directly from the browser.
 
 No Ansible control node. No manual scripting. Just point, click, deploy.
 

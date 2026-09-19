@@ -1,4 +1,4 @@
-# ── SWAPS ────────────────────────────────────────────────────────
+# ── SWAps ────────────────────────────────────────────────────────
 # src/index.html is pre-compiled (React.createElement, no JSX runtime).
 # public/index.html is the compiled copy committed alongside src/.
 # No Babel build step needed — copy public/ directly.
