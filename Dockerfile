@@ -3,8 +3,7 @@
 # public/index.html is the compiled copy committed alongside src/.
 # No Babel build step needed — copy public/ directly.
 
-FROM node:20-alpine
-
+FROM node:22-alpine
 WORKDIR /app
 
 COPY package*.json ./
