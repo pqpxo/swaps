@@ -21,14 +21,18 @@
   --mono:var(--sw-mono,'JetBrains Mono','Fira Mono',monospace);
   --sans:var(--sw-font,'Roboto',system-ui,sans-serif);
   --rad:var(--sw-radius-md,8px);
+  /* Script syntax colours: GitHub dark, and GitHub light below. */
+  --hl-c:#6a737d;--hl-k:#f97583;--hl-cmd:#85e89d;--hl-s:#ffea7f;--hl-v:#79b8ff;--hl-sec:#a371f7;
 }
+[data-theme='light']{--hl-c:#6e7781;--hl-k:#cf222e;--hl-cmd:#116329;--hl-s:#0a3069;--hl-v:#0550ae;--hl-sec:#8250df}
 html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
 input,textarea,select{
-  background:var(--surf);border:1px solid var(--bdr);border-radius:6px;
-  color:var(--text);font-family:var(--mono);font-size:12px;
-  padding:5px 9px;outline:none;width:100%;transition:border-color .15s;
+  background:var(--sw-field,var(--surf));border:1px solid var(--bdr);border-radius:var(--sw-control-radius,6px);
+  color:var(--text);font-family:var(--sans);font-size:var(--sw-fs-sm,13px);
+  min-height:var(--sw-control-h-sm,28px);padding:4px 9px;outline:none;width:100%;transition:border-color .15s;
 }
-input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+input:focus,textarea:focus,select:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--sw-accent-wash,transparent)}
+textarea.code,textarea[spellcheck=false]{font-family:var(--mono)}
 input[type=color]{padding:2px;height:26px;width:30px;cursor:pointer;border-radius:4px}
 input[type=radio],input[type=checkbox]{width:auto;accent-color:var(--teal)}
 textarea{resize:vertical;line-height:1.55}
@@ -766,33 +770,35 @@ function generateAnsible(_ref4) {
 }
 function hlBash(code) {
   const CC = {
-    c: '#6a737d',
-    k: '#f97583',
-    cmd: '#85e89d',
-    s: '#ffea7f',
-    v: '#79b8ff',
-    sec: '#a371f7'
+    c: 'var(--hl-c)',
+    k: 'var(--hl-k)',
+    cmd: 'var(--hl-cmd)',
+    s: 'var(--hl-s)',
+    v: 'var(--hl-v)',
+    sec: 'var(--hl-sec)'
   };
   return code.split('\n').map((line, i) => {
     const n = `<span style="color:${CC.c};user-select:none;display:inline-block;width:36px;text-align:right;padding-right:10px">${i + 1}</span>`;
     let h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     if (line.trimStart().startsWith('# ═') || line.trimStart().startsWith('# ─')) return `${n}<span style="color:${CC.sec};font-weight:600">${h}</span>`;
     if (line.trimStart().startsWith('#')) return `${n}<span style="color:${CC.c};font-style:italic">${h}</span>`;
-    h = h.replace(/\b(if|then|else|elif|fi|for|while|do|done|case|esac|in|export|local|set)\b/g, `<span style="color:${CC.k}">$1</span>`);
-    h = h.replace(/\b(echo|printf|sudo|apt-get|curl|wget|docker|git|mkdir|chmod|chown|touch|cat|cp|mv|systemctl|usermod|gpg|tee|bash|sh|ufw|fail2ban|crontab|sed)\b/g, `<span style="color:${CC.cmd}">$1</span>`);
-    h = h.replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span style="color:${CC.s}">"$1"</span>`);
-    h = h.replace(/'([^']*)'/g, `<span style="color:${CC.s}">'$1'</span>`);
-    h = h.replace(/(\$\{?[\w@#?]+\}?)/g, `<span style="color:${CC.v}">$1</span>`);
+    // One pass, so no rule re-matches the markup another rule has just added.
+    const KW = /^(if|then|else|elif|fi|for|while|do|done|case|esac|in|export|local|set)$/;
+    const CMD = /^(echo|printf|sudo|apt-get|curl|wget|docker|git|mkdir|chmod|chown|touch|cat|cp|mv|systemctl|usermod|gpg|tee|bash|sh|ufw|fail2ban|crontab|sed)$/;
+    h = h.replace(/"(?:[^"\\]|\\.)*"|'[^']*'|\$\{?[\w@#?]+\}?|\b[\w-]+\b/g, (t) => {
+      const c = t[0] === '"' || t[0] === "'" ? CC.s : t[0] === '$' ? CC.v : KW.test(t) ? CC.k : CMD.test(t) ? CC.cmd : null;
+      return c ? `<span style="color:${c}">${t}</span>` : t;
+    });
     return `${n}${h}`;
   }).join('\n');
 }
 function hlAnsible(code) {
   return code.split('\n').map((line, i) => {
-    const n = `<span style="color:#6a737d;user-select:none;display:inline-block;width:36px;text-align:right;padding-right:10px">${i + 1}</span>`;
+    const n = `<span style="color:var(--hl-c);user-select:none;display:inline-block;width:36px;text-align:right;padding-right:10px">${i + 1}</span>`;
     let h = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    if (h.trimStart().startsWith('-')) h = h.replace(/^(\s*-\s*)(\w+:)/, `$1<span style="color:#f97583">$2</span>`);
-    if (/^\s+\w+:/.test(h)) h = h.replace(/^(\s+)(\w+:)/, `$1<span style="color:#79b8ff">$2</span>`);
-    if (/^---/.test(h.trim())) h = `<span style="color:#a371f7">${h}</span>`;
+    if (h.trimStart().startsWith('-')) h = h.replace(/^(\s*-\s*)(\w+:)/, `$1<span style="color:var(--hl-k)">$2</span>`);
+    if (/^\s+\w+:/.test(h)) h = h.replace(/^(\s+)(\w+:)/, `$1<span style="color:var(--hl-v)">$2</span>`);
+    if (/^---/.test(h.trim())) h = `<span style="color:var(--hl-sec)">${h}</span>`;
     return `${n}${h}`;
   }).join('\n');
 }
@@ -977,35 +983,42 @@ function Btn(_ref8) {
     style = {},
     size = 'sm'
   } = _ref8;
-  const pad = size === 'sm' ? '5px 11px' : '7px 16px';
+  // Shape and type come from the SWSuite tokens (fallbacks for SWAps on its own),
+  // so every button matches the other apps. Callers' size overrides are dropped;
+  // layout ones (margin, width, flex) still apply.
+  const { fontSize, padding, height, borderRadius, fontFamily, fontWeight, lineHeight, ...layout } = style;
   const base = {
-    padding: pad,
-    fontSize: 12,
-    borderRadius: 6,
+    height: size === 'sm' ? 'var(--sw-control-h-sm, 28px)' : 'var(--sw-control-h, 34px)',
+    padding: size === 'sm' ? '0 10px' : '0 var(--sw-control-px, 12px)',
+    fontSize: size === 'sm' ? 'var(--sw-fs-xs, 12px)' : 'var(--sw-fs-sm, 13px)',
+    borderRadius: 'var(--sw-control-radius, 6px)',
     border: '1px solid',
     cursor: disabled ? 'not-allowed' : 'pointer',
     fontFamily: 'var(--sans)',
     fontWeight: 500,
-    transition: 'all .15s',
-    opacity: disabled ? .45 : 1,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    transition: 'background-color .12s, border-color .12s',
+    opacity: disabled ? .5 : 1,
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 5,
+    justifyContent: 'center',
+    gap: 6,
   };
   const v = {
     default: {
       borderColor: 'var(--bdr)',
-      background: 'transparent',
+      background: 'var(--card)',
       color: 'var(--text)'
     },
     primary: {
-      borderColor: 'var(--teal)',
-      background: 'var(--tealDim)',
-      color: 'var(--teal)'
+      borderColor: 'transparent',
+      background: 'var(--teal)',
+      color: 'var(--sw-accent-ink, #fff)'
     },
     danger: {
-      borderColor: 'rgba(248,81,73,.4)',
-      background: 'rgba(248,81,73,.1)',
+      borderColor: 'color-mix(in srgb, var(--red) 45%, transparent)',
+      background: 'transparent',
       color: 'var(--red)'
     },
     ghost: {
@@ -1024,7 +1037,7 @@ function Btn(_ref8) {
     style: {
       ...base,
       ...v[variant],
-      ...style
+      ...layout
     }
   }, children);
 }
@@ -1049,9 +1062,10 @@ function Tag(_ref9) {
   };
   return React.createElement("span", {
     style: {
-      fontSize: 10,
-      padding: '2px 7px',
-      borderRadius: 10,
+      fontSize: 'var(--sw-fs-xs, 11px)',
+      padding: '2px 9px',
+      borderRadius: 999,
+      lineHeight: 1.5,
       background: colors[color] || colors.blue,
       color: textColors[color] || textColors.blue,
       fontFamily: 'var(--sans)',
@@ -3544,7 +3558,8 @@ function App() {
       height: 36,
       background: 'var(--card)'
     },
-    title: "Import from host"
+    title: "Import from host",
+    size: 'md'
   }, "\u2193 Import"), React.createElement(Btn, {
     onClick: openShare,
     style: {
@@ -3553,7 +3568,8 @@ function App() {
       height: 36,
       background: 'var(--card)'
     },
-    title: "Share config"
+    title: "Share config",
+    size: 'md'
   }, "\u21C4 Share"), React.createElement(Btn, {
     onClick: () => setTheme(t => t === 'dark' ? 'light' : 'dark'),
     style: {
@@ -3562,7 +3578,8 @@ function App() {
       height: 36,
       background: 'var(--card)'
     },
-    title: "Toggle theme"
+    title: "Toggle theme",
+    size: 'md'
   }, theme === 'dark' ? '☀' : '🌙'), (curTerm.status === 'success' || curTerm.status === 'error') && verifyResults && React.createElement(Btn, {
     onClick: () => setRightTab('deploy'),
     variant: "blue",
@@ -3596,19 +3613,18 @@ function App() {
       onClick: () => setLeftTab(k),
       title: lbl_,
       style: {
-        width: 50,
-        height: 50,
-        borderRadius: 10,
+        width: 44,
+        height: 44,
+        borderRadius: 'var(--sw-control-radius, 8px)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        background: leftTab === k ? 'var(--tealDim)' : 'transparent',
-        color: leftTab === k ? 'var(--teal)' : 'var(--dim)',
-        transition: 'all .15s',
+        background: leftTab === k ? 'var(--sw-accent-wash, var(--tealDim))' : 'transparent',
+        color: leftTab === k ? 'var(--text)' : 'var(--dim)',
+        transition: 'background-color .12s, color .12s',
         fontSize: 18,
-        boxShadow: leftTab === k ? 'rgba(0,0,0,0.09) 0px 2px 1px, rgba(0,0,0,0.09) 0px 4px 2px, rgba(0,0,0,0.09) 0px 8px 4px, rgba(0,0,0,0.09) 0px 16px 8px, rgba(0,0,0,0.09) 0px 32px 16px' : 'none'
       }
     }, icon);
   })), React.createElement("div", {
