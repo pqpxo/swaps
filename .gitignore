@@ -2,3 +2,9 @@ node_modules/
 *.notworking
 *.old
 backup/
+
+# Editor and hand-made backups
+*.bak
+*.bak.*
+*.bak[0-9]
+*.old
