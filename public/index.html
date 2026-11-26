@@ -5,26 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>SWAps</title>
 <link rel="icon" type="image/png" href="logo.png"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
+<!-- SWSuite shared theme (served by the suite proxy). Fallbacks below keep the app usable on its own port. -->
+<script src="/suite/theme-init.js"></script>
+<link rel="stylesheet" href="/suite/theme.css"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#1a2133;--surf:#242e42;--card:#2c3650;
-  --bdr:#3a4d6a;--bdrh:#536485;
-  --teal:#1D9E75;--tealDim:rgba(29,158,117,.36);--tealBdr:rgba(29,158,117,.4);
-  --blue:#388bfd;--blueDim:rgba(56,139,253,.1);
-  --text:#e6edf3;--dim:#b1b8c0;--faint:#e6edf3;
-  --green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#a371f7;
-  --mono:'JetBrains Mono','Fira Mono',monospace;
-  --sans:'Roboto',system-ui,sans-serif;
-  --rad:8px;
-}
-.light{
-  --bg:#f6f8fa;--surf:#ffffff;--card:#f6f8fa;
-  --bdr:#d0d7de;--bdrh:#afb8c1;
-  --text:#24292f;--dim:#57606a;--faint:#8c959f;
+  /* Aliases to the SWSuite tokens; light and dark both come from /suite/theme.css. */
+  --bg:var(--sw-bg,#1a2133);--surf:var(--sw-surface,#242e42);--card:var(--sw-surface-raised,#2c3650);
+  --bdr:var(--sw-border,#3a4d6a);--bdrh:color-mix(in srgb,var(--bdr),var(--text) 25%);
+  --teal:var(--sw-accent,#1D9E75);--tealDim:color-mix(in srgb,var(--teal) 36%,transparent);--tealBdr:color-mix(in srgb,var(--teal) 40%,transparent);
+  --blue:var(--sw-info,#388bfd);--blueDim:color-mix(in srgb,var(--blue) 10%,transparent);
+  --text:var(--sw-text,#e6edf3);--dim:var(--sw-text-muted,#b1b8c0);--faint:var(--sw-text-muted,#b1b8c0);
+  --green:var(--sw-ok,#3fb950);--amber:var(--sw-warn,#d29922);--red:var(--sw-bad,#f85149);--purple:#a371f7;
+  --mono:var(--sw-mono,'JetBrains Mono','Fira Mono',monospace);
+  --sans:var(--sw-font,'Roboto',system-ui,sans-serif);
+  --rad:var(--sw-radius-md,8px);
 }
 html,body,#root{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans)}
 input,textarea,select{
@@ -1250,7 +1246,7 @@ function SwItem(_ref11) {
       width: 28,
       height: 28,
       borderRadius: 6,
-      background: on ? 'var(--teal)' : '#2c3650',
+      background: on ? 'var(--teal)' : 'var(--card)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -2462,11 +2458,17 @@ function VaultModal(_ref19) {
 }
 function App() {
   var _UFW_PRESETS$find;
-  const [theme, setTheme] = useState(() => localStorage.getItem('swaps_theme') || 'dark');
+  // Light/dark is the suite-wide setting (swsuite-theme), shared with the portal and every app.
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'dark');
   useEffect(() => {
-    document.documentElement.className = theme === 'light' ? 'light' : '';
-    localStorage.setItem('swaps_theme', theme);
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem('swsuite-theme', theme); } catch (e) {}
   }, [theme]);
+  useEffect(() => {
+    const o = new MutationObserver(() => setTheme(document.documentElement.dataset.theme || 'dark'));
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => o.disconnect();
+  }, []);
   const [hostname, setHostname] = useState('');
   const [notes, setNotes] = useState('');
   const [distro, setDistro] = useState({
@@ -3423,6 +3425,7 @@ function App() {
     }
   }, React.createElement("div", {
     className: "hdr-brand",
+    "data-sw-chrome": "",
     style: {
       display: 'flex',
       alignItems: 'center',
